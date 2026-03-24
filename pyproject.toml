@@ -1,0 +1,14 @@
+[project]
+name = "loom-agent"
+version = "0.1.0"
+description = "A single primitive for self-controlling agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "opencode-agent-sdk",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
