@@ -2,70 +2,112 @@
 
 A single primitive for self-controlling agents: `step()`.
 
-The model writes Python. Python calls `step()`. Each `step()` is a full agent turn with tool access. Python provides the control flow. Every agent architecture pattern (ReAct, RLM, task trees, self-guardrailing) emerges as a special case.
+You write a Python program. Each `step()` is a turn in the model's own session — context accumulates, the model remembers everything. Python controls the flow. The model does the work.
 
 ## Install
+
+```bash
+npx skills add signalrush/loom
+```
+
+Works with Claude Code, Codex, Cursor, OpenCode, Windsurf, and 40+ other agents.
+
+### Manual setup
 
 ```bash
 pip install loom-agent
 ```
 
-Requires Python 3.10+ and a running [OpenCode](https://github.com/nicholasgriffintn/opencode) server (`opencode serve`).
+Requires Python 3.10+ and [OpenCode](https://github.com/opencode-ai/opencode) (`opencode serve`).
 
 ## Quick Start
 
-```python
-import asyncio
-from loom import step
+Write a program:
 
-async def main():
+```python
+# program.py
+
+async def main(step):
     result = await step("What files are in the current directory?")
     print(result)
-
-asyncio.run(main())
 ```
+
+Run it:
+
+```bash
+loom-run program.py
+```
+
+## How it works
+
+```
+opencode serve --port 54321
+       │
+       ├── TUI (opencode attach) — you watch
+       │
+       └── loom-run program.py — feeds steps into the same session
+```
+
+Each `step()` is a turn in the model's own session. The model remembers all previous steps. Python handles loops, branching, and state.
 
 ## Structured Output
 
-Pass a `schema` to get structured results your code can branch on:
+Use `schema` when Python needs to make decisions:
 
 ```python
-result = await step(
-    "Run train.py and report the validation loss",
-    schema={"val_bpb": "float"}
-)
-if result["val_bpb"] < best:
-    print("Improved!")
-```
-
-## Context
-
-Pass state between steps explicitly — each step gets a fresh context window:
-
-```python
-result = await step(
-    "Propose one experiment",
-    context={"best_so_far": 3.2, "experiment_number": 5},
-    schema={"description": "str", "val_bpb": "float"}
-)
+async def main(step):
+    result = await step(
+        "Run train.py and report the validation loss",
+        schema={"val_loss": "float"}
+    )
+    if result["val_loss"] < 0.5:
+        await step("Good enough. Stop experimenting.")
+    else:
+        await step("Try a higher learning rate.")
 ```
 
 ## Example: Autoresearch
 
-See [`examples/autoresearch.py`](examples/autoresearch.py) — an autonomous research loop that proposes experiments, runs them, keeps improvements, and periodically replans.
+```python
+async def main(step):
+    baseline = await step("Run train.py, report val_loss", schema={"val_loss": "float"})
+    best = baseline["val_loss"]
 
-## How It Works
+    for i in range(20):
+        result = await step(
+            f"Experiment {i+1}: beat val_loss={best}. Edit, commit, run, report.",
+            schema={"val_loss": "float", "description": "str"}
+        )
+        if result["val_loss"] < best:
+            best = result["val_loss"]
+        else:
+            await step("Revert: git reset --hard HEAD~1")
 
-- Each `step()` creates a fresh OpenCode session (clean context window)
-- The model inside a step has full tool access (bash, file edit, etc.)
-- Cross-step state flows through Python variables, not context accumulation
-- Step 1000 is as lucid as step 1
+        if (i + 1) % 5 == 0:
+            await step("Reflect: what's working? Adjust strategy.")
+```
+
+See [`examples/autoresearch.py`](examples/autoresearch.py) for the full version.
+
+## Monitor & Steer
+
+```bash
+loom-run status    # process status + state
+loom-run log       # tail live output
+loom-run stop      # kill it
+```
+
+Steer by killing, editing `program.py`, and restarting. State persists in `loom-state.json`.
+
+## Key Insight
+
+`step()` is NOT a sub-agent. It's the model continuing to work in its own session. The Python program is just control flow around the model's own actions. Every agent architecture pattern (ReAct, experiment loops, task trees) is a special case of `step()` + Python.
 
 ## Docs
 
-- [Quickstart](docs/quickstart.md) — get running in 5 minutes
-- [API Reference](docs/api.md) — full `step()` and `StepRuntime` docs
-- [Design](docs/design.md) — why `step()` works this way
+- [Quickstart](docs/quickstart.md)
+- [API Reference](docs/api.md)
+- [Design](docs/design.md)
 
 ## License
 
