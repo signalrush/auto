@@ -1,15 +1,13 @@
 ---
 name: auto
-description: Write Python programs that control your own execution with step(). Use when you need long-running loops, research, optimization, or any task requiring 10+ steps with branching logic. Triggers on "auto", "run a loop", "autoresearch", "step loop", "write a program", or when a program.py with def main(step) exists.
+description: Run yourself in a loop with branching logic via a Python program. Use for long-running tasks like optimization, research, iterative improvement, or any multi-step workflow where you need to repeat, branch, or track progress across 10+ turns. Triggers on "auto", "run a loop", "autoresearch", "keep improving", or when a program.py with def main(step) exists.
 ---
 
-# Auto Skill — Self-Controlling Agent Programs
+# Auto — Run yourself in a loop
 
-## What is Auto?
+Auto lets you write a short Python program that drives your own turns. You keep working across many turns with loops, branching, and state — without the user having to prompt you each time.
 
-Auto lets you write a Python program that controls agent execution. You write `async def main(step)` — the `step` function sends instructions to an agent session. Context accumulates. The agent remembers everything.
-
-The Python program is the control flow. `step()` is the agent acting.
+Use it when a task needs many iterations (optimize, research, experiment) or structured multi-step workflows.
 
 ## How to Use
 
@@ -155,4 +153,4 @@ async def main(step):
 
 ## Key insight
 
-`step()` drives your session. The Python program controls when and how you work. Each step is a full turn with access to all tools.
+Each `step()` is a full turn — you can use all your tools (Bash, Read, Edit, etc.). The Python program decides what to do next based on your results. You keep your full conversation memory across all steps.
