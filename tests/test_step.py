@@ -5,7 +5,7 @@ import pytest
 
 def test_step_module_import():
     """Verify loom.step can be imported."""
-    from loom.step import run_program, _extract_json, _send_step
+    from loom.step import run_program, _extract_json
 
 
 def test_run_program_import():
