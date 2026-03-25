@@ -101,6 +101,7 @@ async def run_program(program_fn, server_url=None, cwd=None):
     client = SDKClient(options=AgentOptions(
         server_url=server_url,
         cwd=cwd,
+        permission_mode="auto",
     ))
     await client.connect()
 
