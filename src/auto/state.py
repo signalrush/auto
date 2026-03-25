@@ -1,10 +1,10 @@
-"""State helper module for loom programs.
+"""State helper module for auto programs.
 
-A simple module that writes/reads structured progress to loom-state.json
+A simple module that writes/reads structured progress to auto-state.json
 in the current working directory.
 
 Usage:
-    from loom import state
+    from auto import state
     
     state.set("status", "running")
     state.update({"best_loss": 0.23, "step": 7})
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 
-STATE_FILE = "loom-state.json"
+STATE_FILE = "auto-state.json"
 
 
 def _get_state_file() -> Path:
@@ -62,7 +62,7 @@ def _save_state(data: Dict[str, Any]) -> None:
         # Create temporary file in same directory as target
         temp_fd, temp_path = tempfile.mkstemp(
             dir=state_file.parent,
-            prefix='.loom-state-',
+            prefix='.auto-state-',
             suffix='.tmp'
         )
         

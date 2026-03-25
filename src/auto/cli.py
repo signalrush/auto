@@ -1,4 +1,4 @@
-"""CLI entry point for loom-run."""
+"""CLI entry point for auto-run."""
 
 import asyncio
 import importlib.util
@@ -10,18 +10,18 @@ import signal
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
-        print("Usage: loom-run <command> [args...]")
+        print("Usage: auto-run <command> [args...]")
         print()
         print("Commands:")
-        print("    loom-run <program.py>   Start a loom program in background")
-        print("    loom-run status         Show running state and recent logs")
-        print("    loom-run log            Tail the loom.log file")
-        print("    loom-run stop           Kill running program")
+        print("    auto-run <program.py>   Start an auto program in background")
+        print("    auto-run status         Show running state and recent logs")
+        print("    auto-run log            Tail the auto.log file")
+        print("    auto-run stop           Kill running program")
         print()
         print("Environment Variables:")
-        print("    LOOM_SESSION_ID         Resume a specific session")
-        print("    LOOM_MODEL              Model to use (e.g. claude-haiku-4-5)")
-        print("    LOOM_PROVIDER           Provider (default: anthropic)")
+        print("    AUTO_SESSION_ID         Resume a specific session")
+        print("    AUTO_MODEL              Model to use (e.g. claude-haiku-4-5)")
+        print("    AUTO_PROVIDER           Provider (default: anthropic)")
         sys.exit(0)
 
     command = sys.argv[1]
@@ -39,8 +39,8 @@ def main():
         sys.exit(1)
 
 
-PID_FILE = ".loom.pid"
-LOG_FILE = "loom.log"
+PID_FILE = ".auto.pid"
+LOG_FILE = "auto.log"
 
 
 def _start_program(program_path):
@@ -54,8 +54,8 @@ def _start_program(program_path):
             old_pid = int(f.read().strip())
         try:
             os.kill(old_pid, 0)
-            print(f"Error: Loom program already running (PID {old_pid})", file=sys.stderr)
-            print("Use 'loom-run stop' first", file=sys.stderr)
+            print(f"Error: Auto program already running (PID {old_pid})", file=sys.stderr)
+            print("Use 'auto-run stop' first", file=sys.stderr)
             sys.exit(1)
         except ProcessLookupError:
             os.remove(PID_FILE)
@@ -71,7 +71,7 @@ sys.path.insert(0, os.getcwd())
 spec = importlib.util.spec_from_file_location('program', {program_path!r})
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-from loom.step import run_program
+from auto.step import run_program
 asyncio.run(run_program(mod.main))
 """],
         stdout=open(LOG_FILE, "w"),
@@ -82,13 +82,13 @@ asyncio.run(run_program(mod.main))
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
 
-    print(f"[loom] Started in background (PID {proc.pid})")
-    print(f"[loom] Logs: {LOG_FILE}")
-    print(f"[loom] Monitor: loom-run status")
+    print(f"[auto] Started in background (PID {proc.pid})")
+    print(f"[auto] Logs: {LOG_FILE}")
+    print(f"[auto] Monitor: auto-run status")
 
 
 def _show_status():
-    print("=== Loom Status ===")
+    print("=== Auto Status ===")
 
     if os.path.isfile(PID_FILE):
         with open(PID_FILE) as f:
@@ -107,8 +107,8 @@ def _show_status():
     # Show state
     print()
     print("=== State ===")
-    if os.path.isfile("loom-state.json"):
-        with open("loom-state.json") as f:
+    if os.path.isfile("auto-state.json"):
+        with open("auto-state.json") as f:
             print(f.read())
     else:
         print("No state file found")
@@ -134,13 +134,13 @@ def _tail_log():
 
 def _stop_program():
     if not os.path.isfile(PID_FILE):
-        print("No running loom program found")
+        print("No running auto program found")
         return
 
     with open(PID_FILE) as f:
         pid = int(f.read().strip())
 
-    print(f"Stopping loom program (PID {pid})...")
+    print(f"Stopping auto program (PID {pid})...")
     try:
         os.kill(pid, signal.SIGTERM)
         # Wait briefly

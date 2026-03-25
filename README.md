@@ -1,4 +1,4 @@
-# loom
+# auto
 
 A single primitive for self-controlling agents: `step()`.
 
@@ -7,7 +7,7 @@ You write a Python program. Each `step()` is a turn in the model's own session �
 ## Install
 
 ```bash
-npx skills add signalrush/loom
+npx skills add signalrush/auto
 ```
 
 Works with Claude Code, Codex, Cursor, OpenCode, Windsurf, and 40+ other agents.
@@ -15,7 +15,7 @@ Works with Claude Code, Codex, Cursor, OpenCode, Windsurf, and 40+ other agents.
 ### Manual setup
 
 ```bash
-pip install loom-agent
+pip install auto-agent
 ```
 
 Requires Python 3.10+ and [OpenCode](https://github.com/opencode-ai/opencode) (`opencode serve`).
@@ -35,7 +35,7 @@ async def main(step):
 Run it:
 
 ```bash
-loom-run program.py
+auto-run program.py
 ```
 
 ## How it works
@@ -45,7 +45,7 @@ opencode serve --port 54321
        │
        ├── TUI (opencode attach) — you watch
        │
-       └── loom-run program.py — feeds steps into the same session
+       └── auto-run program.py — feeds steps into the same session
 ```
 
 Each `step()` is a turn in the model's own session. The model remembers all previous steps. Python handles loops, branching, and state.
@@ -92,12 +92,12 @@ See [`examples/autoresearch.py`](examples/autoresearch.py) for the full version.
 ## Monitor & Steer
 
 ```bash
-loom-run status    # process status + state
-loom-run log       # tail live output
-loom-run stop      # kill it
+auto-run status    # process status + state
+auto-run log       # tail live output
+auto-run stop      # kill it
 ```
 
-Steer by killing, editing `program.py`, and restarting. State persists in `loom-state.json`.
+Steer by killing, editing `program.py`, and restarting. State persists in `auto-state.json`.
 
 ## Key Insight
 

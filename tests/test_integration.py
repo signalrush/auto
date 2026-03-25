@@ -7,7 +7,7 @@ Requires:
 
 import os
 import pytest
-from loom.step import run_program
+from auto.step import run_program
 
 pytestmark = [
     pytest.mark.asyncio,

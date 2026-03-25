@@ -1,8 +1,8 @@
-# Writing Loom Programs
+# Writing Auto Programs
 
 ## The basics
 
-A loom program is a Python file with one function:
+An auto program is a Python file with one function:
 
 ```python
 async def main(step):
@@ -42,10 +42,10 @@ await step("read the error log and fix the bug")
 
 ## State management
 
-For programs that run long (hours/days), track progress with `loom.state`:
+For programs that run long (hours/days), track progress with `auto.state`:
 
 ```python
-from loom import state
+from auto import state
 
 async def main(step):
     state.set("status", "running")
@@ -59,7 +59,7 @@ async def main(step):
     all_state = state.get()  # full dict
 ```
 
-State persists in `loom-state.json`. Survives program restarts.
+State persists in `auto-state.json`. Survives program restarts.
 
 ## Control flow patterns
 
@@ -120,6 +120,6 @@ async def main(step):
 1. **Step = you acting.** Don't think of it as calling a sub-agent. It's you, doing one thing.
 2. **Schema = bridge to Python.** Use it when Python needs to make decisions based on results.
 3. **Context accumulates.** You remember everything. No need to repeat context.
-4. **State = crash safety.** Use `loom.state` for anything you'd want to survive a restart.
+4. **State = crash safety.** Use `auto.state` for anything you'd want to survive a restart.
 5. **Steer by restart.** Kill, edit program.py, restart. State persists.
 6. **Keep steps focused.** One clear instruction per step. Let the model figure out the details.

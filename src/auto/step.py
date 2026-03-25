@@ -1,6 +1,6 @@
-"""Loom: the step() primitive.
+"""Auto: the step() primitive.
 
-The model writes a program with def main(step). loom-run executes it,
+The model writes a program with def main(step). auto-run executes it,
 injecting step() which sends each instruction into an agent session
 via the opencode serve HTTP API.
 
@@ -112,30 +112,30 @@ async def _get_or_create_session(client, server_url, session_id=None):
 
 
 async def run_program(program_fn, server_url=None, cwd=None, session_id=None):
-    """Execute a loom program.
+    """Execute an auto program.
 
     Sends steps to an opencode serve instance via HTTP. All steps run in
     the SAME session — the agent remembers everything.
 
     By default, attaches to the most recent existing session (the one
-    visible in the TUI). Set LOOM_SESSION_ID to target a specific session.
+    visible in the TUI). Set AUTO_SESSION_ID to target a specific session.
 
     Requires `opencode serve` to be running.
 
     Args:
         program_fn: An async function that takes step as its argument.
-        server_url: OpenCode server URL. Defaults to LOOM_SERVER_URL env or localhost:54321.
+        server_url: OpenCode server URL. Defaults to AUTO_SERVER_URL env or localhost:54321.
         cwd: Working directory (unused currently, reserved for future).
-        session_id: Session ID to use. If not set, checks LOOM_SESSION_ID env.
+        session_id: Session ID to use. If not set, checks AUTO_SESSION_ID env.
                     If neither is set, uses the most recent session.
     """
-    server_url = (server_url or os.environ.get("LOOM_SERVER_URL", "http://localhost:54321")).rstrip("/")
-    session_id = session_id or os.environ.get("LOOM_SESSION_ID")
+    server_url = (server_url or os.environ.get("AUTO_SERVER_URL", "http://localhost:54321")).rstrip("/")
+    session_id = session_id or os.environ.get("AUTO_SESSION_ID")
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
         session_id = await _get_or_create_session(client, server_url, session_id)
-        print(f"[loom] Using session: {session_id}")
-        print(f"[loom] Server: {server_url}")
+        print(f"[auto] Using session: {session_id}")
+        print(f"[auto] Server: {server_url}")
 
         step_count = 0
 
@@ -151,11 +151,11 @@ async def run_program(program_fn, server_url=None, cwd=None, session_id=None):
             """
             nonlocal step_count
             step_count += 1
-            print(f"[loom] Step {step_count}: {instruction[:80]}...")
+            print(f"[auto] Step {step_count}: {instruction[:80]}...")
             result = await _send_step(client, server_url, session_id, instruction, schema)
             result_preview = json.dumps(result)[:100] if isinstance(result, dict) else result[:100]
-            print(f"[loom] Step {step_count} result: {result_preview}")
+            print(f"[auto] Step {step_count} result: {result_preview}")
             return result
 
         await program_fn(step)
-        print(f"[loom] Program complete ({step_count} steps)")
+        print(f"[auto] Program complete ({step_count} steps)")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ensure every source module under loom/ (except __init__.py) has a test file."""
+"""Ensure every source module under auto/ (except __init__.py) has a test file."""
 
 import pathlib
 import sys
@@ -7,11 +7,11 @@ import sys
 
 def main():
     root = pathlib.Path(__file__).resolve().parent.parent
-    loom_dir = root / "src" / "loom"
+    auto_dir = root / "src" / "auto"
     tests_dir = root / "tests"
     missing = []
 
-    for py_file in sorted(loom_dir.rglob("*.py")):
+    for py_file in sorted(auto_dir.rglob("*.py")):
         if py_file.name == "__init__.py":
             continue
         module_name = py_file.stem

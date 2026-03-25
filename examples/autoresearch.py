@@ -1,10 +1,10 @@
-"""Autoresearch: autonomous experiment loop using loom.
+"""Autoresearch: autonomous experiment loop using auto.
 
-The model writes this program. loom-run executes it.
+The model writes this program. auto-run executes it.
 Each step() is a turn in the model's own session — context accumulates.
 
 Usage:
-    loom-run autoresearch.py
+    auto-run autoresearch.py
 """
 
 

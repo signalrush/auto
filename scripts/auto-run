@@ -1,26 +1,26 @@
 #!/bin/bash
-# loom-run: Wrapper script for running loom programs
+# auto-run: Wrapper script for running auto programs
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOOM_PID_FILE=".loom.pid"
-LOOM_LOG_FILE="loom.log"
+LOOM_PID_FILE=".auto.pid"
+LOOM_LOG_FILE="auto.log"
 DEFAULT_PORT="54321"
 
 show_help() {
     cat << EOF
-Usage: loom-run <command> [args...]
+Usage: auto-run <command> [args...]
 
 Commands:
-    loom-run <program.py> [--port PORT]   Start a loom program in background
-    loom-run status                       Show running state and process status  
-    loom-run log                          Tail the loom.log file
-    loom-run stop                         Kill running program
+    auto-run <program.py> [--port PORT]   Start an auto program in background
+    auto-run status                       Show running state and process status  
+    auto-run log                          Tail the auto.log file
+    auto-run stop                         Kill running program
 
 Environment Variables:
     OPENCODE_SERVER_URL                   Server URL (e.g., http://localhost:54321)
-    LOOM_SERVER_URL                       Alternative server URL for loom
+    AUTO_SERVER_URL                       Alternative server URL for auto
 
 EOF
 }
@@ -33,9 +33,9 @@ get_server_port() {
         port=$(echo "$OPENCODE_SERVER_URL" | sed -n 's|.*://[^:]*:\([0-9]*\).*|\1|p')
     fi
     
-    # Check LOOM_SERVER_URL as alternative
-    if [[ -z "$port" && -n "${LOOM_SERVER_URL:-}" ]]; then
-        port=$(echo "$LOOM_SERVER_URL" | sed -n 's|.*://[^:]*:\([0-9]*\).*|\1|p')
+    # Check AUTO_SERVER_URL as alternative
+    if [[ -z "$port" && -n "${AUTO_SERVER_URL:-}" ]]; then
+        port=$(echo "$AUTO_SERVER_URL" | sed -n 's|.*://[^:]*:\([0-9]*\).*|\1|p')
     fi
     
     # Fall back to default
@@ -80,8 +80,8 @@ start_program() {
         local old_pid
         old_pid=$(cat "$LOOM_PID_FILE")
         if kill -0 "$old_pid" 2>/dev/null; then
-            echo "Error: Loom program already running (PID $old_pid)" >&2
-            echo "Use 'loom-run stop' first" >&2
+            echo "Error: Auto program already running (PID $old_pid)" >&2
+            echo "Use 'auto-run stop' first" >&2
             exit 1
         else
             # Stale PID file
@@ -89,15 +89,15 @@ start_program() {
         fi
     fi
     
-    echo "Starting loom program: $program_file"
+    echo "Starting auto program: $program_file"
     echo "Server port: $port"
     
     # Set up environment
-    export LOOM_SERVER_URL="http://localhost:$port"
+    export AUTO_SERVER_URL="http://localhost:$port"
     
     # Auto-detect current session ID if not set
-    # This allows loom programs to resume the caller's session
-    if [[ -z "${LOOM_SESSION_ID:-}" ]]; then
+    # This allows auto programs to resume the caller's session
+    if [[ -z "${AUTO_SESSION_ID:-}" ]]; then
         local detected_session
         detected_session=$(curl -s "http://localhost:$port/session" 2>/dev/null | \
             python3 -c "
@@ -111,19 +111,19 @@ try:
 except: pass
 " 2>/dev/null)
         if [[ -n "$detected_session" ]]; then
-            export LOOM_SESSION_ID="$detected_session"
+            export AUTO_SESSION_ID="$detected_session"
             echo "Resuming session: $detected_session"
         fi
     fi
     
-    # Start program in background — loom-run wraps the user's main() with the runtime
+    # Start program in background — auto-run wraps the user's main() with the runtime
     nohup python3 -c "
 import asyncio, importlib.util, sys, os
 sys.path.insert(0, os.getcwd())
 spec = importlib.util.spec_from_file_location('program', '$program_file')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-from loom.step import run_program
+from auto.step import run_program
 asyncio.run(run_program(mod.main))
 " > "$LOOM_LOG_FILE" 2>&1 &
     local pid=$!
@@ -131,11 +131,11 @@ asyncio.run(run_program(mod.main))
     
     echo "Program started with PID $pid"
     echo "Logs: $LOOM_LOG_FILE"
-    echo "Run 'loom-run status' to check progress"
+    echo "Run 'auto-run status' to check progress"
 }
 
 show_status() {
-    echo "=== Loom Status ==="
+    echo "=== Auto Status ==="
     
     # Check process status
     if [[ -f "$LOOM_PID_FILE" ]]; then
@@ -153,14 +153,14 @@ show_status() {
         return
     fi
     
-    # Show state from loom-state.json
+    # Show state from auto-state.json
     echo ""
     echo "=== State ==="
-    if [[ -f "loom-state.json" ]]; then
+    if [[ -f "auto-state.json" ]]; then
         if command -v jq >/dev/null 2>&1; then
-            cat loom-state.json | jq .
+            cat auto-state.json | jq .
         else
-            cat loom-state.json
+            cat auto-state.json
         fi
     else
         echo "No state file found"
@@ -188,14 +188,14 @@ tail_log() {
 
 stop_program() {
     if [[ ! -f "$LOOM_PID_FILE" ]]; then
-        echo "No running loom program found"
+        echo "No running auto program found"
         return
     fi
     
     local pid
     pid=$(cat "$LOOM_PID_FILE")
     
-    echo "Stopping loom program (PID $pid)..."
+    echo "Stopping auto program (PID $pid)..."
     
     if kill -0 "$pid" 2>/dev/null; then
         # Send SIGTERM first
@@ -247,7 +247,7 @@ case "${1:-}" in
         ;;
     *)
         echo "Error: Unknown command '$1'" >&2
-        echo "Run 'loom-run --help' for usage" >&2
+        echo "Run 'auto-run --help' for usage" >&2
         exit 1
         ;;
 esac

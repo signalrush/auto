@@ -1,4 +1,4 @@
-"""Tests for the loom.state module."""
+"""Tests for the auto.state module."""
 
 import json
 import os
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from loom import state
+from auto import state
 
 
 @pytest.fixture
@@ -26,9 +26,9 @@ def temp_dir():
 
 
 def test_state_import():
-    """Verify loom.state can be imported."""
-    import loom.state
-    assert loom.state is not None
+    """Verify auto.state can be imported."""
+    import auto.state
+    assert auto.state is not None
 
 
 def test_set_and_get(temp_dir):
@@ -68,7 +68,7 @@ def test_update(temp_dir):
 
 def test_file_creation(temp_dir):
     """Test that state file is created automatically."""
-    state_file = Path("loom-state.json")
+    state_file = Path("auto-state.json")
     
     # File shouldn't exist initially
     assert not state_file.exists()
@@ -110,11 +110,11 @@ def test_empty_state_file(temp_dir):
     assert state.get("anything") is None
     
     # Create empty file
-    Path("loom-state.json").touch()
+    Path("auto-state.json").touch()
     assert state.get() == {}
     
     # Create file with only whitespace
-    with open("loom-state.json", "w") as f:
+    with open("auto-state.json", "w") as f:
         f.write("   \n  \n")
     assert state.get() == {}
 
@@ -122,7 +122,7 @@ def test_empty_state_file(temp_dir):
 def test_invalid_json_handling(temp_dir):
     """Test handling of corrupted JSON file."""
     # Create file with invalid JSON
-    with open("loom-state.json", "w") as f:
+    with open("auto-state.json", "w") as f:
         f.write("{ invalid json")
     
     # Should return empty dict and not crash
@@ -207,7 +207,7 @@ def test_concurrent_access(temp_dir):
     assert "counter" in final_state, "Initial counter key should still exist"
     
     # Verify file is valid JSON (not corrupted)
-    with open("loom-state.json") as f:
+    with open("auto-state.json") as f:
         json.load(f)  # Should not raise
 
 
@@ -305,7 +305,7 @@ def test_file_locking_behavior(temp_dir):
         thread.join()
     
     # Verify the final state file is valid JSON (not corrupted)
-    state_file = Path("loom-state.json")
+    state_file = Path("auto-state.json")
     assert state_file.exists()
     
     with open(state_file) as f:

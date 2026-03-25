@@ -45,20 +45,20 @@ async def main(step):
 
 ## `run_program(program_fn, server_url=None, cwd=None)`
 
-Executes a loom program by connecting to an OpenCode server and passing a `step` function to your main function.
+Executes an auto program by connecting to an OpenCode server and passing a `step` function to your main function.
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `program_fn` | `function` | required | Your main function that takes `step` as argument. Can be sync or async. |
-| `server_url` | `str` | `None` | OpenCode server URL. Defaults to `LOOM_SERVER_URL` env var or `http://localhost:54321`. |
+| `server_url` | `str` | `None` | OpenCode server URL. Defaults to `AUTO_SERVER_URL` env var or `http://localhost:54321`. |
 | `cwd` | `str` | `None` | Working directory for agent tool execution. Defaults to current directory. |
 
 ### Example
 
 ```python
-from loom import run_program
+from auto import run_program
 
 async def main(step):
     result = await step("Run tests and fix any failures.")

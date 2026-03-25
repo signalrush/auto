@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-import every Python module under loom/. Fail if any import errors."""
+"""Smoke-import every Python module under auto/. Fail if any import errors."""
 
 import importlib
 import pathlib
@@ -9,10 +9,10 @@ import sys
 def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root / "src"))
-    loom_dir = root / "src" / "loom"
+    auto_dir = root / "src" / "auto"
     errors = []
 
-    for py_file in sorted(loom_dir.rglob("*.py")):
+    for py_file in sorted(auto_dir.rglob("*.py")):
         rel = py_file.relative_to(root / "src")
         parts = list(rel.with_suffix("").parts)
         if parts[-1] == "__init__":

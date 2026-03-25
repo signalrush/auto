@@ -252,7 +252,7 @@ This maps directly onto `step()`: each step is a `query()` → `receive_response
 
 ```python
 async def run_program(program_fn, server_url=None, cwd=None):
-    """Execute a loom program.
+    """Execute an auto program.
 
     The program_fn receives a step() function that sends instructions
     into a persistent session. Context accumulates across steps.
@@ -260,10 +260,10 @@ async def run_program(program_fn, server_url=None, cwd=None):
     Args:
         program_fn: A function that takes step as its argument.
                     Can be sync (def main(step)) or async (async def main(step)).
-        server_url: OpenCode server URL. Defaults to LOOM_SERVER_URL env or localhost:54321.
+        server_url: OpenCode server URL. Defaults to AUTO_SERVER_URL env or localhost:54321.
         cwd: Working directory. Defaults to current directory.
     """
-    server_url = server_url or os.environ.get("LOOM_SERVER_URL", "http://localhost:54321")
+    server_url = server_url or os.environ.get("AUTO_SERVER_URL", "http://localhost:54321")
     cwd = cwd or os.getcwd()
 
     client = SDKClient(options=AgentOptions(
@@ -353,7 +353,7 @@ async def main(step):
 
 This program runs indefinitely within a persistent session. The Python loop handles state (best score, count), branching (keep/discard), and periodic replanning. Each step accumulates context, allowing the model to remember all previous experiments.
 
-## Integration: Loom as an Agent Skill
+## Integration: Auto as an Agent Skill
 
 ### Architecture
 
@@ -362,46 +362,46 @@ opencode serve --port 54321
        │
        ├── TUI attaches (interactive view)
        │
-       ├── loom program.py connects (automated steps)
+       ├── auto program.py connects (automated steps)
        │
        └── web UI (optional)
 ```
 
-The OpenCode server is the brain. The TUI is a window. Loom programs are another client. They share the same backend, tools, and filesystem.
+The OpenCode server is the brain. The TUI is a window. Auto programs are another client. They share the same backend, tools, and filesystem.
 
 ### How it works
 
 The model inside the TUI:
 
-1. **Installs the skill** — `npx skills add signalrush/loom` (or it's pre-installed in the environment)
+1. **Installs the skill** — `npx skills add signalrush/auto` (or it's pre-installed in the environment)
 2. **Reads the skill instructions** — learns how to write `async def main(step)` programs
 3. **Writes `program.py`** — a Python script with `async def main(step)` pattern
-4. **Runs `loom-run program.py`** — a wrapper script that handles plumbing
-5. **Checks progress** — reads `loom-state.json` or `loom-run status`
+4. **Runs `auto-run program.py`** — a wrapper script that handles plumbing
+5. **Checks progress** — reads `auto-state.json` or `auto-run status`
 
-### `loom-run` — the wrapper script
+### `auto-run` — the wrapper script
 
 ```bash
-loom-run program.py    # start a loom program in background
-loom-run status        # show running state, last result
-loom-run log           # tail the output log
-loom-run stop          # kill a running program
+auto-run program.py    # start an auto program in background
+auto-run status        # show running state, last result
+auto-run log           # tail the output log
+auto-run stop          # kill a running program
 ```
 
-What `loom-run` does internally:
+What `auto-run` does internally:
 
 1. **Discovers the server port** — reads from `OPENCODE_SERVER_URL` env var, or from OpenCode's config/state files, or accepts `--port` explicitly
-2. **Ensures loom is installed** — `pip install loom-agent` if needed
-3. **Sets `LOOM_SERVER_URL`** — so `step()` connects to the existing server
-4. **Runs program.py in background** — `nohup python program.py > loom.log 2>&1 &`, writes PID to `loom.pid`
-5. **program.py writes progress** — structured state to `loom-state.json`
+2. **Ensures auto is installed** — `pip install auto-agent` if needed
+3. **Sets `AUTO_SERVER_URL`** — so `step()` connects to the existing server
+4. **Runs program.py in background** — `nohup python program.py > auto.log 2>&1 &`, writes PID to `auto.pid`
+5. **program.py writes progress** — structured state to `auto-state.json`
 
 ### State reporting
 
 Programs use a `state` helper to write progress:
 
 ```python
-from loom import state
+from auto import state
 
 async def main(step):
     state.set("status", "running")
@@ -420,7 +420,7 @@ async def main(step):
     state.set("status", "done")
 ```
 
-The model in the TUI can `cat loom-state.json` at any time to see:
+The model in the TUI can `cat auto-state.json` at any time to see:
 ```json
 {"status": "running", "best_loss": 0.23, "step": 7}
 ```
@@ -429,21 +429,21 @@ The model in the TUI can `cat loom-state.json` at any time to see:
 
 The model can steer by:
 
-1. **Kill and restart** — `loom-run stop`, edit `program.py`, `loom-run program.py`
+1. **Kill and restart** — `auto-run stop`, edit `program.py`, `auto-run program.py`
 2. **Edit program.py while running** — if the program re-reads itself (self-rewrite pattern), changes take effect on next iteration
-3. **Write to a control file** — program.py watches `loom-control.json`, model writes directives to it
+3. **Write to a control file** — program.py watches `auto-control.json`, model writes directives to it
 
 Option 1 is simplest and sufficient. The program is cheap to restart because state is in files, not in memory.
 
 ### What ships as a skill
 
 ```
-skills/loom/
+skills/auto/
   SKILL.md              # instructions for the model
   scripts/
-    loom-run            # CLI wrapper (bash)
+    auto-run            # CLI wrapper (bash)
   references/
-    program-guide.md    # how to write loom programs
+    program-guide.md    # how to write auto programs
     examples.md         # example programs
 ```
 
@@ -453,7 +453,7 @@ skills/loom/
 - **Persistent session context** — step() operates within a continuous session, maintaining conversation history while Python manages control flow
 - **Model writes the program** — full control over execution flow
 - **Visible state** — JSON files the model can read anytime
-- **Same server** — loom uses the same backend as the TUI, same tools, same filesystem
+- **Same server** — auto uses the same backend as the TUI, same tools, same filesystem
 - **Steer by restart** — kill, edit, restart is simple and reliable
 
 ## Open Questions

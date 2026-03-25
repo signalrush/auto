@@ -1,30 +1,30 @@
 ---
-name: loom
-description: Write Python programs that control your own execution with step(). Use when you need long-running loops, research, optimization, or any task requiring 10+ steps with branching logic. Triggers on "loom", "run a loop", "autoresearch", "step loop", "write a program", or when a program.py with def main(step) exists.
+name: auto
+description: Write Python programs that control your own execution with step(). Use when you need long-running loops, research, optimization, or any task requiring 10+ steps with branching logic. Triggers on "auto", "run a loop", "autoresearch", "step loop", "write a program", or when a program.py with def main(step) exists.
 ---
 
-# Loom Skill — Self-Controlling Agent Programs
+# Auto Skill — Self-Controlling Agent Programs
 
-## What is Loom?
+## What is Auto?
 
-Loom lets you write a Python program that controls agent execution. You write `async def main(step)` — the `step` function sends instructions to an agent session. Context accumulates. The agent remembers everything.
+Auto lets you write a Python program that controls agent execution. You write `async def main(step)` — the `step` function sends instructions to an agent session. Context accumulates. The agent remembers everything.
 
 The Python program is the control flow. `step()` is the agent acting.
 
-## ⚠️ CRITICAL: Loom runs in its OWN session
+## ⚠️ CRITICAL: Auto runs in its OWN session
 
-**loom-run creates a separate agent session.** It does NOT run in your current session. This means:
+**auto-run creates a separate agent session.** It does NOT run in your current session. This means:
 
-- `loom-run` MUST be run **in the background** (`&` or `nohup`)
-- If you run it in the foreground, it will deadlock (your session blocks waiting for loom-run, loom-run blocks waiting for your session)
-- Monitor it via `loom-run status` and `loom-run log`
+- `auto-run` MUST be run **in the background** (`&` or `nohup`)
+- If you run it in the foreground, it will deadlock (your session blocks waiting for auto-run, auto-run blocks waiting for your session)
+- Monitor it via `auto-run status` and `auto-run log`
 
 ## How to Use
 
 ### 1. Install (if not already)
 
 ```bash
-pip install -e /path/to/loom   # or: git clone + pip install -e .
+pip install -e /path/to/auto   # or: git clone + pip install -e .
 ```
 
 ### 2. Write a program
@@ -62,29 +62,29 @@ That's it. No imports needed beyond the `step` function passed to `main`.
 ### 3. Run it (MUST be in background)
 
 ```bash
-loom-run program.py &
+auto-run program.py &
 ```
 
 Or use the built-in background mode:
 ```bash
-nohup loom-run program.py > loom.log 2>&1 &
+nohup auto-run program.py > auto.log 2>&1 &
 ```
 
 ### 4. Monitor
 
 ```bash
-loom-run status    # process status + state + recent logs
-loom-run log       # tail live output
-loom-run stop      # kill it
+auto-run status    # process status + state + recent logs
+auto-run log       # tail live output
+auto-run stop      # kill it
 ```
 
 ### 5. Steer
 
 Kill, edit, restart:
 ```bash
-loom-run stop
+auto-run stop
 # edit program.py
-loom-run program.py &
+auto-run program.py &
 ```
 
 ## step() API
@@ -101,10 +101,10 @@ Each `step()` is a turn in the agent's session. The agent has full tool access (
 
 ## State tracking (optional)
 
-For long-running programs, use `loom.state` to write progress to `loom-state.json`:
+For long-running programs, use `auto.state` to write progress to `auto-state.json`:
 
 ```python
-from loom import state
+from auto import state
 
 async def main(step):
     state.set("status", "running")
@@ -116,7 +116,7 @@ async def main(step):
     state.set("status", "done")
 ```
 
-Then `loom-run status` or `cat loom-state.json` shows progress.
+Then `auto-run status` or `cat auto-state.json` shows progress.
 
 ## Patterns
 
@@ -158,7 +158,7 @@ async def main(step):
             await step("Reflect on last 10 experiments. Adjust strategy.")
 ```
 
-## When to use Loom
+## When to use Auto
 
 **Use it for:** long-running loops, research, optimization, anything needing 10+ steps with branching logic
 
@@ -166,4 +166,4 @@ async def main(step):
 
 ## Key insight
 
-`step()` drives a separate agent session. The Python program controls when and how the agent works. Loom-run must always be launched in the background to avoid deadlocking your current session.
+`step()` drives a separate agent session. The Python program controls when and how the agent works. Auto-run must always be launched in the background to avoid deadlocking your current session.

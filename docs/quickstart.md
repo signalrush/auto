@@ -9,13 +9,13 @@
 ## Install
 
 ```bash
-npx skills add signalrush/loom
+npx skills add signalrush/auto
 ```
 
 Or manually:
 
 ```bash
-pip install loom-agent
+pip install auto-agent
 ```
 
 ## Start OpenCode
@@ -55,7 +55,7 @@ async def main(step):
 ## Run it
 
 ```bash
-loom-run program.py
+auto-run program.py
 ```
 
 ## Write a loop
@@ -85,7 +85,7 @@ async def main(step):
             await step("Revert the last change. Git reset to previous commit.")
 ```
 
-Run with `loom-run autoresearch.py`. The session persists across all steps — the model remembers every experiment. The Python loop handles state, branching, and control flow. The model handles the actual coding work inside each step.
+Run with `auto-run autoresearch.py`. The session persists across all steps — the model remembers every experiment. The Python loop handles state, branching, and control flow. The model handles the actual coding work inside each step.
 
 ## Next steps
 
