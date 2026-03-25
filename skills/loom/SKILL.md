@@ -7,19 +7,33 @@ description: Write Python programs that control your own execution with step(). 
 
 ## What is Loom?
 
-Loom lets you write a Python program that controls your own execution. You write `async def main(step)` — the `step` function sends instructions back into your session. Context accumulates. You remember everything.
+Loom lets you write a Python program that controls agent execution. You write `async def main(step)` — the `step` function sends instructions to an agent session. Context accumulates. The agent remembers everything.
 
-The Python program is your control flow. `step()` is you acting.
+The Python program is the control flow. `step()` is the agent acting.
+
+## ⚠️ CRITICAL: Loom runs in its OWN session
+
+**loom-run creates a separate agent session.** It does NOT run in your current session. This means:
+
+- `loom-run` MUST be run **in the background** (`&` or `nohup`)
+- If you run it in the foreground, it will deadlock (your session blocks waiting for loom-run, loom-run blocks waiting for your session)
+- Monitor it via `loom-run status` and `loom-run log`
 
 ## How to Use
 
-### 1. Write a program
+### 1. Install (if not already)
+
+```bash
+pip install -e /path/to/loom   # or: git clone + pip install -e .
+```
+
+### 2. Write a program
 
 ```python
 # program.py
 
 async def main(step):
-    # Each step() is a turn in your own session — you remember everything
+    # Each step() is a turn in the agent's session — it remembers everything
     baseline = await step(
         "Run train.py and report val_loss",
         schema={"val_loss": "float"}
@@ -45,13 +59,18 @@ async def main(step):
 
 That's it. No imports needed beyond the `step` function passed to `main`.
 
-### 2. Run it
+### 3. Run it (MUST be in background)
 
 ```bash
-loom-run program.py
+loom-run program.py &
 ```
 
-### 3. Monitor
+Or use the built-in background mode:
+```bash
+nohup loom-run program.py > loom.log 2>&1 &
+```
+
+### 4. Monitor
 
 ```bash
 loom-run status    # process status + state + recent logs
@@ -59,13 +78,13 @@ loom-run log       # tail live output
 loom-run stop      # kill it
 ```
 
-### 4. Steer
+### 5. Steer
 
 Kill, edit, restart:
 ```bash
 loom-run stop
 # edit program.py
-loom-run program.py
+loom-run program.py &
 ```
 
 ## step() API
@@ -78,7 +97,7 @@ result = await step(instruction, schema={})   # returns dict
 - **instruction** (`str`): What to do. Natural language.
 - **schema** (`dict`, optional): Forces structured JSON output. Keys are field names, values are type descriptions.
 
-Each `step()` is a turn in your own session. You have full tool access (bash, file edit, etc). You remember all previous steps.
+Each `step()` is a turn in the agent's session. The agent has full tool access (bash, file edit, etc) and remembers all previous steps.
 
 ## State tracking (optional)
 
@@ -147,4 +166,4 @@ async def main(step):
 
 ## Key insight
 
-`step()` is NOT a sub-agent. It's you, continuing to work. The Python program just controls when and how you work. You keep your full memory across all steps.
+`step()` drives a separate agent session. The Python program controls when and how the agent works. Loom-run must always be launched in the background to avoid deadlocking your current session.

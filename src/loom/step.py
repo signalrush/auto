@@ -1,7 +1,7 @@
 """Loom: the step() primitive.
 
 The model writes a program with def main(step). loom-run executes it,
-injecting step() which sends each instruction into the model's own session.
+sending each instruction to a NEW dedicated agent session via the SDK.
 
     async def main(step):
         result = await step("run train.py, report loss")
@@ -9,12 +9,14 @@ injecting step() which sends each instruction into the model's own session.
 
 step(instruction) -> str
 step(instruction, schema={...}) -> dict
+
+IMPORTANT: loom-run always creates its own session. It must NOT run in the
+same session as the calling agent — that would deadlock.
 """
 
 import json
 import re
 import os
-import subprocess
 
 
 def _extract_json(text):
@@ -51,41 +53,25 @@ def _extract_json(text):
     raise ValueError(f"Could not extract valid JSON from response: {text[:200]}")
 
 
-def _get_latest_session_id():
-    """Get the most recent session ID from opencode CLI."""
-    result = subprocess.run(
-        ["opencode", "session", "list"],
-        capture_output=True, text=True, timeout=10,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to list sessions: {result.stderr}")
-
-    # Parse the table output — session IDs start with "ses_"
-    for line in result.stdout.strip().split("\n"):
-        line = line.strip()
-        if line.startswith("ses_"):
-            return line.split()[0]
-
-    raise RuntimeError("No existing sessions found. Start opencode first.")
-
-
 async def run_program(program_fn, server_url=None, cwd=None, session_id=None,
                       model=None, provider_id=None, permission_mode="auto"):
     """Execute a loom program.
 
-    The program_fn receives a step() function that sends instructions
-    into a persistent session. Context accumulates across steps — the model
-    remembers everything from previous steps.
+    Creates a NEW dedicated session and sends all steps into it.
+    Context accumulates across steps — the agent remembers everything.
 
-    Uses the opencode-agent-sdk to attach to the existing session. All steps
-    run in the SAME session visible in the TUI.
+    If session_id is provided (or LOOM_SESSION_ID env), resumes that session.
+    Otherwise creates a fresh session.
+
+    MUST be run in the background when invoked from another agent session,
+    otherwise it will deadlock.
 
     Args:
         program_fn: An async function that takes step as its argument.
         server_url: Unused (kept for backwards compat). SDK uses subprocess mode.
         cwd: Working directory for the agent. Defaults to current dir.
-        session_id: Session ID to use. If not set, checks LOOM_SESSION_ID env var.
-                    If neither is set, uses the most recent session.
+        session_id: Session ID to resume. If not set, checks LOOM_SESSION_ID env.
+                    If neither is set, creates a new session.
         model: Model to use (e.g. "claude-haiku-4-5"). Defaults to LOOM_MODEL env.
         provider_id: Provider ID (e.g. "anthropic"). Defaults to LOOM_PROVIDER env.
         permission_mode: Permission mode for tool use. Defaults to "auto".
@@ -93,21 +79,21 @@ async def run_program(program_fn, server_url=None, cwd=None, session_id=None,
     from opencode_agent_sdk import SDKClient, AgentOptions
 
     session_id = session_id or os.environ.get("LOOM_SESSION_ID")
-    if not session_id:
-        session_id = _get_latest_session_id()
-
     model = model or os.environ.get("LOOM_MODEL", "")
     provider_id = provider_id or os.environ.get("LOOM_PROVIDER", "anthropic")
     cwd = cwd or os.getcwd()
 
-    print(f"[loom] Attaching to session: {session_id}")
+    if session_id:
+        print(f"[loom] Resuming session: {session_id}")
+    else:
+        print(f"[loom] Creating new session")
 
     options = AgentOptions(
         cwd=cwd,
         model=model,
         provider_id=provider_id,
         permission_mode=permission_mode,
-        resume=session_id,
+        resume=session_id if session_id else None,
     )
 
     client = SDKClient(options=options)
@@ -115,7 +101,7 @@ async def run_program(program_fn, server_url=None, cwd=None, session_id=None,
 
     try:
         async def step(instruction, schema=None):
-            """Send an instruction to the model and get the result.
+            """Send an instruction to the agent and get the result.
 
             Args:
                 instruction: What to do. Natural language.
