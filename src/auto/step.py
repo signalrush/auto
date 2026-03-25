@@ -34,22 +34,37 @@ def _extract_json(text):
             pass
 
     for start_char, end_char in [('{', '}'), ('[', ']')]:
-        start = text.find(start_char)
-        if start == -1:
+        end = text.rfind(end_char)
+        if end == -1:
             continue
         depth = 0
-        for i in range(start, len(text)):
-            if text[i] == start_char:
+        for i in range(end, -1, -1):
+            if text[i] == end_char:
                 depth += 1
-            elif text[i] == end_char:
+            elif text[i] == start_char:
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(text[start:i + 1])
+                        return json.loads(text[i:end + 1])
                     except json.JSONDecodeError:
                         break
 
     raise ValueError(f"Could not extract valid JSON from response: {text[:200]}")
+
+
+async def _send_message(client, server_url, session_id, text):
+    """Send a message and return the last text part from the response."""
+    resp = await client.post(
+        f"{server_url}/session/{session_id}/message",
+        json={"parts": [{"type": "text", "text": text}]},
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    result = ""
+    for part in data.get("parts", []):
+        if part.get("type") == "text":
+            result = part["text"]
+    return result
 
 
 async def _send_step(client, server_url, session_id, instruction, schema=None):
@@ -66,23 +81,24 @@ async def _send_step(client, server_url, session_id, instruction, schema=None):
             f"Return ONLY the JSON object, no other text."
         )
 
-    resp = await client.post(
-        f"{server_url}/session/{session_id}/message",
-        json={"parts": [{"type": "text", "text": prompt}]},
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    result = await _send_message(client, server_url, session_id, prompt)
 
-    # Extract text from response parts
-    result = ""
-    parts = data.get("parts", [])
-    for part in parts:
-        if part.get("type") == "text":
-            result = part["text"]  # take the last text part
+    if schema is None:
+        return result
 
-    if schema is not None:
-        return _extract_json(result)
-    return result
+    # Try to parse JSON, if it fails ask the model to fix it
+    for attempt in range(3):
+        try:
+            return _extract_json(result)
+        except ValueError:
+            if attempt == 2:
+                print(f"[auto] JSON parse failed after 3 attempts, returning raw text")
+                return {k: None for k in schema}
+            print(f"[auto] JSON parse failed, asking model to reformat...")
+            result = await _send_message(
+                client, server_url, session_id,
+                f"Your previous response was not valid JSON. Return ONLY a JSON object with these keys: {json.dumps(schema)}. No other text."
+            )
 
 
 async def _get_or_create_session(client, server_url, session_id=None):
@@ -132,7 +148,7 @@ async def run_program(program_fn, server_url=None, cwd=None, session_id=None):
     server_url = (server_url or os.environ.get("AUTO_SERVER_URL", "http://localhost:54321")).rstrip("/")
     session_id = session_id or os.environ.get("AUTO_SESSION_ID")
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10.0)) as client:
         session_id = await _get_or_create_session(client, server_url, session_id)
         print(f"[auto] Using session: {session_id}")
         print(f"[auto] Server: {server_url}")
