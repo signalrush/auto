@@ -279,7 +279,7 @@ def test_hook_transcript_tail_jq_returns_last_assistant_text(tmp_path):
         [
             "bash", "-c",
             f"tail -n 200 {transcript_path}"
-            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | last // \"\"'"
+            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
         ],
         capture_output=True, text=True,
     )
@@ -288,8 +288,8 @@ def test_hook_transcript_tail_jq_returns_last_assistant_text(tmp_path):
     assert output == "hello from assistant", f"Got: {output!r}"
 
 
-def test_hook_transcript_tail_jq_returns_last_of_multiple_assistant_turns(tmp_path):
-    """When multiple assistant turns exist, jq | last returns the final one."""
+def test_hook_transcript_tail_jq_returns_all_assistant_text_joined(tmp_path):
+    """When multiple assistant turns exist, jq join returns all text concatenated."""
     transcript_path = tmp_path / "transcript.jsonl"
     transcript_lines = [
         '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "q1"}]}}',
@@ -303,10 +303,10 @@ def test_hook_transcript_tail_jq_returns_last_of_multiple_assistant_turns(tmp_pa
         [
             "bash", "-c",
             f"tail -n 200 {transcript_path}"
-            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | last // \"\"'"
+            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
         ],
         capture_output=True, text=True,
     )
     assert result.returncode == 0, f"tail/jq failed: {result.stderr}"
     output = result.stdout.strip()
-    assert output == "answer two", f"Got: {output!r}"
+    assert "answer one" in output and "answer two" in output, f"Got: {output!r}"

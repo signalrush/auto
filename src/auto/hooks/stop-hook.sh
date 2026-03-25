@@ -57,7 +57,7 @@ if [[ "$STATUS" == "running" ]]; then
   LAST_OUTPUT=""
   if [[ -f "$TRANSCRIPT_PATH" ]]; then
     LAST_OUTPUT=$(tail -n 200 "$TRANSCRIPT_PATH" | jq -rs '
-      [.[] | select(.role == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // ""
+      [.[] | select(.role == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
     ' 2>/dev/null)
   fi
 
