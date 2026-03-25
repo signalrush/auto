@@ -46,9 +46,9 @@ def test_extract_json_invalid():
 
 
 def test_env_var_default():
-    """Test that LOOM_SERVER_URL env var is checked."""
+    """Test that LOOM_SESSION_ID env var is checked."""
     import os
     from loom.step import run_program
-    # run_program reads LOOM_SERVER_URL — just verify it's referenced in the module
+    # run_program reads LOOM_SESSION_ID — just verify it's referenced in the module
     import loom.step
-    assert "LOOM_SERVER_URL" in open(loom.step.__file__).read()
+    assert "LOOM_SESSION_ID" in open(loom.step.__file__).read()
