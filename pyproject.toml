@@ -9,6 +9,9 @@ dependencies = [
     "opencode-agent-sdk",
 ]
 
+[project.scripts]
+loom-run = "loom.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
