@@ -1,3 +1,8 @@
+---
+name: loom
+description: Write Python programs that control your own execution with step(). Use when you need long-running loops, research, optimization, or any task requiring 10+ steps with branching logic. Triggers on "loom", "run a loop", "autoresearch", "step loop", "write a program", or when a program.py with def main(step) exists.
+---
+
 # Loom Skill — Self-Controlling Agent Programs
 
 ## What is Loom?
