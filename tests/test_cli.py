@@ -164,10 +164,14 @@ def test_hook_script_exits_clean_without_state_file(tmp_path):
 def test_hook_script_picks_up_pending(tmp_path):
     """Hook should read pending instruction and output block decision."""
     os.chdir(tmp_path)
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
+    (tmp_path / ".claude").mkdir()
 
-    # Write pending state
+    # Write pending state at $HOME/.auto/latest/self.json
+    auto_dir = tmp_path / ".auto"
+    run_dir = auto_dir / "run-test"
+    run_dir.mkdir(parents=True)
+    os.symlink("run-test", auto_dir / "latest")
+
     state = {
         "status": "pending",
         "session_id": "",
@@ -179,14 +183,17 @@ def test_hook_script_picks_up_pending(tmp_path):
         "python_pid": os.getpid(),  # use our own PID (alive)
         "cwd": str(tmp_path),
     }
-    with open(claude_dir / "auto-loop.json", "w") as f:
+    state_file = run_dir / "self.json"
+    with open(state_file, "w") as f:
         json.dump(state, f)
 
     hook_script = Path(__file__).parent.parent / "src" / "auto" / "hooks" / "stop-hook.sh"
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
     result = subprocess.run(
         ["bash", str(hook_script)],
         input='{"session_id": "", "transcript_path": "/tmp/none.jsonl", "hook_event_name": "Stop"}',
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True, text=True, cwd=tmp_path, env=env,
     )
     assert result.returncode == 0, f"Hook failed: {result.stderr}"
 
@@ -195,7 +202,7 @@ def test_hook_script_picks_up_pending(tmp_path):
     assert "say hello" in output["reason"]
 
     # State should now be "running"
-    with open(claude_dir / "auto-loop.json") as f:
+    with open(state_file) as f:
         updated = json.load(f)
     assert updated["status"] == "running"
 
@@ -203,8 +210,12 @@ def test_hook_script_picks_up_pending(tmp_path):
 def test_hook_script_schema_augments_prompt(tmp_path):
     """When schema is set, the hook should append JSON formatting instructions."""
     os.chdir(tmp_path)
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
+    (tmp_path / ".claude").mkdir()
+
+    auto_dir = tmp_path / ".auto"
+    run_dir = auto_dir / "run-test"
+    run_dir.mkdir(parents=True)
+    os.symlink("run-test", auto_dir / "latest")
 
     state = {
         "status": "pending",
@@ -217,14 +228,17 @@ def test_hook_script_schema_augments_prompt(tmp_path):
         "python_pid": os.getpid(),
         "cwd": str(tmp_path),
     }
-    with open(claude_dir / "auto-loop.json", "w") as f:
+    state_file = run_dir / "self.json"
+    with open(state_file, "w") as f:
         json.dump(state, f)
 
     hook_script = Path(__file__).parent.parent / "src" / "auto" / "hooks" / "stop-hook.sh"
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
     result = subprocess.run(
         ["bash", str(hook_script)],
         input='{"session_id": "", "transcript_path": "/tmp/none.jsonl", "hook_event_name": "Stop"}',
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True, text=True, cwd=tmp_path, env=env,
     )
     output = json.loads(result.stdout)
     assert "Respond with a JSON object" in output["reason"]
@@ -234,8 +248,12 @@ def test_hook_script_schema_augments_prompt(tmp_path):
 def test_hook_script_dead_pid_cleanup(tmp_path):
     """Hook should clean up state file when Python PID is dead."""
     os.chdir(tmp_path)
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
+    (tmp_path / ".claude").mkdir()
+
+    auto_dir = tmp_path / ".auto"
+    run_dir = auto_dir / "run-test"
+    run_dir.mkdir(parents=True)
+    os.symlink("run-test", auto_dir / "latest")
 
     state = {
         "status": "pending",
@@ -248,17 +266,20 @@ def test_hook_script_dead_pid_cleanup(tmp_path):
         "python_pid": 99999,  # dead PID
         "cwd": str(tmp_path),
     }
-    with open(claude_dir / "auto-loop.json", "w") as f:
+    state_file = run_dir / "self.json"
+    with open(state_file, "w") as f:
         json.dump(state, f)
 
     hook_script = Path(__file__).parent.parent / "src" / "auto" / "hooks" / "stop-hook.sh"
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
     result = subprocess.run(
         ["bash", str(hook_script)],
         input='{"session_id": "", "transcript_path": "/tmp/none.jsonl", "hook_event_name": "Stop"}',
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True, text=True, cwd=tmp_path, env=env,
     )
     assert result.returncode == 0
-    assert not (claude_dir / "auto-loop.json").exists(), "State file should be deleted for dead PID"
+    assert not state_file.exists(), "State file should be deleted for dead PID"
 
 
 def test_hook_transcript_tail_jq_returns_last_assistant_text(tmp_path):

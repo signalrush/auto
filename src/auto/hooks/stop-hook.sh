@@ -3,17 +3,11 @@
 # termination from racing PIDs and transient command failures (B16).
 
 HOOK_INPUT=$(cat)
-STATE_FILE=".claude/auto-loop.json"
+STATE_FILE="$HOME/.auto/latest/self.json"
 # Log invocation for debuggability (appears in Claude Code's hook debug output)
 echo "[auto] stop-hook invoked" >&2
 
-# --- Guard: verify hook CWD is the project root ---
-if [[ ! -d ".claude" ]]; then
-  echo "[auto] ERROR: .claude/ directory not found in CWD ($(pwd)). Hook CWD may be wrong." >&2
-  exit 0
-fi
-
-# --- Guard: no state file means no active loop ---
+# --- Guard: state file must exist ---
 if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi

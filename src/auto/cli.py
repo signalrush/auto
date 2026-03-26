@@ -8,6 +8,11 @@ import signal
 import time
 from pathlib import Path
 
+from auto.run_folder import create_run_folder
+
+AUTO_DIR = os.path.join(str(Path.home()), ".auto")
+PID_FILE = os.path.join(str(Path.home()), ".auto", "auto.pid")
+
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
@@ -17,7 +22,7 @@ def main():
         print("    auto-run <program.py>   Start an auto program in background")
         print("    auto-run setup          Install stop hook into .claude/settings.local.json")
         print("    auto-run status         Show running state and recent logs")
-        print("    auto-run log            Tail the latest log file (.claude/logs/auto.log)")
+        print("    auto-run log [agent]    Tail the latest log file (default: self)")
         print("    auto-run stop           Kill running program")
         print()
         print("Environment Variables:")
@@ -31,7 +36,8 @@ def main():
     elif command == "status":
         _show_status()
     elif command == "log":
-        _tail_log()
+        agent_name = sys.argv[2] if len(sys.argv) > 2 else "self"
+        _tail_log(agent_name)
     elif command == "stop":
         _stop_program()
     elif command.endswith(".py"):
@@ -40,10 +46,6 @@ def main():
         print(f"Error: Unknown command '{command}'", file=sys.stderr)
         sys.exit(1)
 
-
-LOG_DIR = ".claude/logs"
-LOG_LINK = os.path.join(LOG_DIR, "auto.log")  # symlink to latest
-PID_FILE = ".claude/auto.pid"
 
 def _setup_hook():
     """Install the auto stop hook into .claude/settings.local.json."""
@@ -131,9 +133,10 @@ def _start_program(program_path):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
-    # Per-run log file in .claude/logs/
-    os.makedirs(LOG_DIR, exist_ok=True)
-    run_log = os.path.join(LOG_DIR, f"auto-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}.log")
+    # Create run folder under ~/.auto/
+    auto_dir = Path(AUTO_DIR)
+    run_dir = create_run_folder(auto_dir)
+    run_log = str(run_dir / "logs" / "self.log")
 
     log_fh = open(run_log, "w")
     try:
@@ -159,33 +162,19 @@ asyncio.run(run_program(mod.main))
         raise
     log_fh.close()
 
-    # Atomic symlink: create temp, then rename over the real one
-    run_log_basename = os.path.basename(run_log)
-    tmp_link = run_log + ".lnk"
-    try:
-        os.symlink(run_log_basename, tmp_link)
-        os.rename(tmp_link, LOG_LINK)
-    except OSError:
-        # Fallback: non-atomic replace
-        try:
-            os.unlink(LOG_LINK)
-        except FileNotFoundError:
-            pass
-        os.symlink(run_log_basename, LOG_LINK)
-
     Path(PID_FILE).parent.mkdir(parents=True, exist_ok=True)
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
 
     print(f"[auto] Started in background (PID {proc.pid})")
+    print(f"[auto] Run folder: {run_dir}")
     print(f"[auto] Logs: {run_log}")
-    print(f"[auto] Latest: {LOG_LINK}")
 
     # Wait for Python to write any state (starting or pending) before printing
     # the "send go" message. run_program writes a "starting" heartbeat before
     # calling program_fn, so the file appears as soon as Python is alive even
     # if program_fn does slow initialization before its first step() call.
-    state_file = Path(".claude/auto-loop.json")
+    state_file = run_dir / "self.json"
     deadline = time.time() + 3.0
     while time.time() < deadline:
         if state_file.exists():
@@ -218,42 +207,59 @@ def _show_status():
     else:
         print("Process: Not running")
 
-    # Show state (always, even when process is dead — useful for post-mortem)
+    # Resolve the latest symlink to show the run folder name
+    latest_path = Path(AUTO_DIR) / "latest"
+    if latest_path.is_symlink():
+        run_name = os.readlink(latest_path)
+        print(f"Run: {run_name}")
+
+    # Show agent states from all .json files in latest/
     print()
-    print("=== State ===")
-    ipc_state_file = ".claude/auto-loop.json"
-    if os.path.isfile(ipc_state_file):
-        with open(ipc_state_file) as f:
-            print(f.read())
+    print("=== Agents ===")
+    if latest_path.exists():
+        json_files = sorted(latest_path.glob("*.json"))
+        if json_files:
+            for jf in json_files:
+                try:
+                    with open(jf) as f:
+                        state = json.load(f)
+                    name = state.get("name", jf.stem)
+                    status = state.get("status", "unknown")
+                    step = state.get("step_number", "?")
+                    instr = state.get("last_instruction", "")
+                    print(f"  {name}: status={status} step={step} last_instruction={instr}")
+                except (json.JSONDecodeError, OSError):
+                    print(f"  {jf.stem}: (unreadable)")
+        else:
+            print("  No agent state files found")
     else:
-        print("No state file found")
+        print("  No active run found")
 
     # Show recent logs
     print()
     print("=== Recent Log ===")
-    if os.path.isfile(LOG_LINK):
-        target = os.path.realpath(LOG_LINK)
-        print(f"(from {target})")
-        with open(LOG_LINK) as f:
+    log_path = latest_path / "logs" / "self.log"
+    if log_path.is_file():
+        print(f"(from {log_path.resolve()})")
+        with open(log_path) as f:
             lines = f.readlines()
             for line in lines[-10:]:
                 print(line, end="")
-    elif os.path.islink(LOG_LINK):
-        print(f"Symlink {LOG_LINK} exists but target is missing (deleted?)")
     else:
         print("No log file found")
 
 
-def _tail_log():
-    if os.path.isfile(LOG_LINK):
-        target = os.path.realpath(LOG_LINK)
+def _tail_log(agent_name="self"):
+    log_path = Path(AUTO_DIR) / "latest" / "logs" / f"{agent_name}.log"
+    if log_path.is_file():
+        target = str(log_path.resolve())
         print(f"(tailing {target})", file=sys.stderr)
-        os.execvp("tail", ["tail", "-n", "50", LOG_LINK])
-    elif os.path.islink(LOG_LINK):
-        print(f"Error: {LOG_LINK} symlink exists but target is missing", file=sys.stderr)
+        os.execvp("tail", ["tail", "-n", "50", str(log_path)])
+    elif (Path(AUTO_DIR) / "latest").is_symlink():
+        print(f"Error: Log file not found: {log_path}", file=sys.stderr)
         sys.exit(1)
     else:
-        print(f"Error: No log file found at {LOG_LINK}", file=sys.stderr)
+        print(f"Error: No active run found in {AUTO_DIR}", file=sys.stderr)
         sys.exit(1)
 
 

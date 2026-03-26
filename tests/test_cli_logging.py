@@ -2,6 +2,8 @@
 
 Covers edge cases in _start_program, _show_status, _tail_log, _stop_program
 around log file creation, symlink handling, and PID lifecycle.
+
+Updated for the new ~/.auto/ run-folder layout.
 """
 
 import os
@@ -20,12 +22,10 @@ import auto.cli as cli_mod
 @pytest.fixture
 def cli_env(tmp_path, monkeypatch):
     """Set up a tmp_path-based environment and monkeypatch module-level constants."""
-    log_dir = str(tmp_path / ".claude" / "logs")
-    log_link = os.path.join(log_dir, "auto.log")
-    pid_file = str(tmp_path / ".claude" / "auto.pid")
+    auto_dir = str(tmp_path / ".auto")
+    pid_file = str(tmp_path / ".auto" / "auto.pid")
 
-    monkeypatch.setattr(cli_mod, "LOG_DIR", log_dir)
-    monkeypatch.setattr(cli_mod, "LOG_LINK", log_link)
+    monkeypatch.setattr(cli_mod, "AUTO_DIR", auto_dir)
     monkeypatch.setattr(cli_mod, "PID_FILE", pid_file)
 
     # Create .claude dir so _setup_hook can write settings
@@ -35,15 +35,11 @@ def cli_env(tmp_path, monkeypatch):
     prog = tmp_path / "prog.py"
     prog.write_text("def main(): pass\n")
 
-    # Create state file so _start_program doesn't wait 3s in polling loop
-    (tmp_path / ".claude" / "auto-loop.json").write_text("{}")
-
     monkeypatch.chdir(tmp_path)
 
     return {
         "tmp_path": tmp_path,
-        "log_dir": log_dir,
-        "log_link": log_link,
+        "auto_dir": auto_dir,
         "pid_file": pid_file,
         "prog": str(prog),
     }
@@ -62,49 +58,36 @@ def _mock_popen(pid=12345):
 
 class TestLogFileCreation:
 
-    def test_log_file_created_with_correct_pattern(self, cli_env):
-        """Per-run log files should be named auto-YYYYMMDD-HHMMSS-<pid>.log."""
+    def test_log_file_created_in_run_folder(self, cli_env):
+        """Per-run log files should be created in run-folder/logs/self.log."""
         with patch.object(subprocess, "Popen", return_value=_mock_popen()):
             with patch.object(cli_mod, "_setup_hook"):
                 cli_mod._start_program(cli_env["prog"])
 
-        log_dir = Path(cli_env["log_dir"])
-        log_files = list(log_dir.glob("auto-*.log"))
-        assert len(log_files) == 1, f"Expected 1 log file, got {log_files}"
+        auto_dir = Path(cli_env["auto_dir"])
+        latest = auto_dir / "latest"
+        assert latest.is_symlink()
+        log_file = latest / "logs" / "self.log"
+        assert log_file.exists(), f"Expected self.log in run folder, got {list(latest.glob('**/*'))}"
 
-        name = log_files[0].name
-        # Pattern: auto-YYYYMMDD-HHMMSS-PID.log
-        parts = name.replace("auto-", "").replace(".log", "").split("-")
-        assert len(parts) == 3, f"Unexpected log file name format: {name}"
-        date_part, time_part, pid_part = parts
-        assert len(date_part) == 8, f"Date part should be 8 chars: {date_part}"
-        assert len(time_part) == 6, f"Time part should be 6 chars: {time_part}"
-        assert pid_part.isdigit(), f"PID part should be numeric: {pid_part}"
-
-    def test_multiple_runs_create_separate_log_files(self, cli_env):
-        """Each run should create a distinct log file, not overwrite previous ones."""
+    def test_multiple_runs_create_separate_run_folders(self, cli_env):
+        """Each run should create a distinct run folder."""
         with patch.object(subprocess, "Popen", return_value=_mock_popen(111)):
             with patch.object(cli_mod, "_setup_hook"):
-                # First run -- must not see an existing PID file
                 cli_mod._start_program(cli_env["prog"])
+
+        auto_dir = Path(cli_env["auto_dir"])
+        first_target = os.readlink(auto_dir / "latest")
 
         # Remove PID file to allow second run
         os.remove(cli_env["pid_file"])
 
-        # Ensure different timestamp by patching time.strftime
-        with patch("auto.cli.time") as mock_time:
-            mock_time.strftime.return_value = "20260327-000001"
-            mock_time.time.return_value = time.time() + 10
-            with patch("auto.cli.os.getpid", return_value=99999):
-                with patch.object(subprocess, "Popen", return_value=_mock_popen(222)):
-                    with patch.object(cli_mod, "_setup_hook"):
-                        cli_mod._start_program(cli_env["prog"])
+        with patch.object(subprocess, "Popen", return_value=_mock_popen(222)):
+            with patch.object(cli_mod, "_setup_hook"):
+                cli_mod._start_program(cli_env["prog"])
 
-        log_dir = Path(cli_env["log_dir"])
-        log_files = sorted(log_dir.glob("auto-*.log"))
-        # Filter out .lnk temp files
-        log_files = [f for f in log_files if not f.name.endswith(".lnk")]
-        assert len(log_files) == 2, f"Expected 2 log files, got {[f.name for f in log_files]}"
+        second_target = os.readlink(auto_dir / "latest")
+        assert first_target != second_target, "Each run should create a new run folder"
 
 
 # ---------------------------------------------------------------------------
@@ -113,125 +96,103 @@ class TestLogFileCreation:
 
 class TestSymlink:
 
-    def test_symlink_points_to_latest_log(self, cli_env):
-        """auto.log symlink should point to the most recent run's log file."""
+    def test_latest_symlink_points_to_run_folder(self, cli_env):
+        """latest symlink should point to the most recent run folder."""
         with patch.object(subprocess, "Popen", return_value=_mock_popen()):
             with patch.object(cli_mod, "_setup_hook"):
                 cli_mod._start_program(cli_env["prog"])
 
-        link = cli_env["log_link"]
-        assert os.path.islink(link), "auto.log should be a symlink"
-        target = os.readlink(link)
+        auto_dir = Path(cli_env["auto_dir"])
+        latest = auto_dir / "latest"
+        assert latest.is_symlink(), "latest should be a symlink"
+        target = os.readlink(latest)
         assert not os.path.isabs(target), (
             f"Symlink should be relative, got absolute path: {target}"
         )
-        assert target.startswith("auto-"), f"Symlink target should be a log file: {target}"
+        assert target.startswith("run-"), f"Symlink target should be a run folder: {target}"
 
-    def test_symlink_is_relative_not_absolute(self, cli_env):
-        """Symlink must use a relative path (basename only) so the project is portable."""
+    def test_latest_symlink_is_relative(self, cli_env):
+        """Symlink must use a relative path (basename only) so the setup is portable."""
         with patch.object(subprocess, "Popen", return_value=_mock_popen()):
             with patch.object(cli_mod, "_setup_hook"):
                 cli_mod._start_program(cli_env["prog"])
 
-        link = cli_env["log_link"]
-        target = os.readlink(link)
+        auto_dir = Path(cli_env["auto_dir"])
+        target = os.readlink(auto_dir / "latest")
         assert "/" not in target, (
             f"Relative symlink should not contain '/': {target}"
         )
 
-    def test_atomic_symlink_replacement_on_second_run(self, cli_env):
-        """Second run should atomically replace the symlink to point to new log."""
+    def test_latest_symlink_updated_on_second_run(self, cli_env):
+        """Second run should atomically replace the latest symlink to point to new run folder."""
         with patch.object(subprocess, "Popen", return_value=_mock_popen(111)):
             with patch.object(cli_mod, "_setup_hook"):
                 cli_mod._start_program(cli_env["prog"])
 
-        first_target = os.readlink(cli_env["log_link"])
+        auto_dir = Path(cli_env["auto_dir"])
+        first_target = os.readlink(auto_dir / "latest")
 
         # Remove PID file to allow second run
         os.remove(cli_env["pid_file"])
 
-        with patch("auto.cli.time") as mock_time:
-            mock_time.strftime.return_value = "20260327-235959"
-            mock_time.time.return_value = time.time() + 10
-            with patch("auto.cli.os.getpid", return_value=77777):
-                with patch.object(subprocess, "Popen", return_value=_mock_popen(222)):
-                    with patch.object(cli_mod, "_setup_hook"):
-                        cli_mod._start_program(cli_env["prog"])
+        with patch.object(subprocess, "Popen", return_value=_mock_popen(222)):
+            with patch.object(cli_mod, "_setup_hook"):
+                cli_mod._start_program(cli_env["prog"])
 
-        second_target = os.readlink(cli_env["log_link"])
+        second_target = os.readlink(auto_dir / "latest")
         assert first_target != second_target, (
-            "Symlink should point to a different log after second run"
+            "Symlink should point to a different run folder after second run"
         )
-        assert second_target.startswith("auto-"), f"Unexpected target: {second_target}"
-
-    def test_symlink_fallback_when_rename_fails(self, cli_env):
-        """If os.rename fails (e.g. cross-device), fallback should still create symlink."""
-        def fake_rename(src, dst):
-            raise OSError("cross-device link")
-
-        with patch("auto.cli.os.rename", side_effect=fake_rename):
-            with patch.object(subprocess, "Popen", return_value=_mock_popen()):
-                with patch.object(cli_mod, "_setup_hook"):
-                    cli_mod._start_program(cli_env["prog"])
-
-        link = cli_env["log_link"]
-        assert os.path.islink(link), "Symlink should exist even after rename failure"
-        target = os.readlink(link)
-        assert not os.path.isabs(target), "Fallback symlink should still be relative"
+        assert second_target.startswith("run-"), f"Unexpected target: {second_target}"
 
 
 # ---------------------------------------------------------------------------
-# Dangling symlink handling
+# Log tailing edge cases
 # ---------------------------------------------------------------------------
 
-class TestDanglingSymlink:
+class TestTailLog:
 
-    def test_tail_log_with_dangling_symlink(self, cli_env, capsys):
-        """_tail_log should detect dangling symlink and exit with error message."""
-        log_dir = Path(cli_env["log_dir"])
-        log_dir.mkdir(parents=True, exist_ok=True)
-        # Create a symlink pointing to a non-existent file
-        os.symlink("auto-nonexistent.log", cli_env["log_link"])
-
+    def test_tail_log_no_active_run(self, cli_env, capsys):
+        """_tail_log should report no active run when latest symlink doesn't exist."""
         with pytest.raises(SystemExit) as exc_info:
             cli_mod._tail_log()
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "target is missing" in captured.err
+        assert "No active run found" in captured.err
 
-    def test_tail_log_no_symlink_at_all(self, cli_env, capsys):
-        """_tail_log should report no log file when symlink doesn't exist."""
-        Path(cli_env["log_dir"]).mkdir(parents=True, exist_ok=True)
+    def test_tail_log_missing_agent_log(self, cli_env, capsys):
+        """_tail_log should report error when agent log file doesn't exist."""
+        auto_dir = Path(cli_env["auto_dir"])
+        run_dir = auto_dir / "run-test"
+        (run_dir / "logs").mkdir(parents=True)
+        os.symlink("run-test", auto_dir / "latest")
 
         with pytest.raises(SystemExit) as exc_info:
-            cli_mod._tail_log()
+            cli_mod._tail_log("nonexistent")
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "No log file found" in captured.err
+        assert "Log file not found" in captured.err
 
-    def test_show_status_with_dangling_symlink(self, cli_env, capsys):
-        """_show_status should detect dangling symlink and report it gracefully."""
-        log_dir = Path(cli_env["log_dir"])
-        log_dir.mkdir(parents=True, exist_ok=True)
-        os.symlink("auto-deleted-run.log", cli_env["log_link"])
 
-        cli_mod._show_status()
+# ---------------------------------------------------------------------------
+# Status display
+# ---------------------------------------------------------------------------
 
-        captured = capsys.readouterr()
-        assert "target is missing" in captured.out
+class TestShowStatus:
 
-    def test_show_status_with_valid_symlink(self, cli_env, capsys):
+    def test_show_status_with_valid_log(self, cli_env, capsys):
         """_show_status should read and display last 10 lines from valid log."""
-        log_dir = Path(cli_env["log_dir"])
-        log_dir.mkdir(parents=True, exist_ok=True)
+        auto_dir = Path(cli_env["auto_dir"])
+        run_dir = auto_dir / "run-test"
+        (run_dir / "logs").mkdir(parents=True)
+        os.symlink("run-test", auto_dir / "latest")
 
         # Create actual log file with content
-        log_file = log_dir / "auto-20260326-120000-1234.log"
+        log_file = run_dir / "logs" / "self.log"
         lines = [f"line {i}\n" for i in range(15)]
         log_file.write_text("".join(lines))
-        os.symlink(log_file.name, cli_env["log_link"])
 
         cli_mod._show_status()
 
@@ -242,14 +203,24 @@ class TestDanglingSymlink:
         # Should NOT show line 0-4
         assert "line 4\n" not in captured.out
 
-    def test_show_status_no_log_at_all(self, cli_env, capsys):
+    def test_show_status_no_log(self, cli_env, capsys):
         """_show_status should report 'No log file found' when nothing exists."""
-        Path(cli_env["log_dir"]).mkdir(parents=True, exist_ok=True)
+        auto_dir = Path(cli_env["auto_dir"])
+        run_dir = auto_dir / "run-test"
+        run_dir.mkdir(parents=True)
+        os.symlink("run-test", auto_dir / "latest")
 
         cli_mod._show_status()
 
         captured = capsys.readouterr()
         assert "No log file found" in captured.out
+
+    def test_show_status_no_active_run(self, cli_env, capsys):
+        """_show_status should report no active run when latest doesn't exist."""
+        cli_mod._show_status()
+
+        captured = capsys.readouterr()
+        assert "No active run found" in captured.out
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +321,7 @@ class TestStopProgram:
         pid_file.parent.mkdir(parents=True, exist_ok=True)
         pid_file.write_text("garbage")
 
-        # Should not raise — uses Path.unlink(missing_ok=True)
+        # Should not raise -- uses Path.unlink(missing_ok=True)
         cli_mod._stop_program()
         captured = capsys.readouterr()
         assert "corrupted" in captured.err.lower()
@@ -371,13 +342,12 @@ class TestLogFileHandleCleanup:
                     cli_mod._start_program(cli_env["prog"])
 
         # Verify the log file was created (open succeeded) but handle is closed.
-        # We can't directly check the fd, but we can verify the file exists
-        # and is not locked (can be opened and read).
-        log_dir = Path(cli_env["log_dir"])
-        log_files = list(log_dir.glob("auto-*.log"))
-        assert len(log_files) == 1, "Log file should be created even on Popen failure"
+        auto_dir = Path(cli_env["auto_dir"])
+        latest = auto_dir / "latest"
+        log_file = latest / "logs" / "self.log"
+        assert log_file.exists(), "Log file should be created even on Popen failure"
         # Should be readable (fd was closed)
-        content = log_files[0].read_text()
+        content = log_file.read_text()
         assert content == "", "Log file should be empty (nothing was written)"
 
     def test_log_fh_closed_on_popen_success(self, cli_env):
@@ -387,10 +357,11 @@ class TestLogFileHandleCleanup:
                 cli_mod._start_program(cli_env["prog"])
 
         # Verify we can read the file (parent closed its handle)
-        log_dir = Path(cli_env["log_dir"])
-        log_files = list(log_dir.glob("auto-*.log"))
-        assert len(log_files) == 1
-        log_files[0].read_text()  # should not raise
+        auto_dir = Path(cli_env["auto_dir"])
+        latest = auto_dir / "latest"
+        log_file = latest / "logs" / "self.log"
+        assert log_file.exists()
+        log_file.read_text()  # should not raise
 
 
 # ---------------------------------------------------------------------------
