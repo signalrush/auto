@@ -57,17 +57,35 @@ if [[ "$STATUS" == "running" ]]; then
   LAST_OUTPUT=""
   if [[ -f "$TRANSCRIPT_PATH" ]]; then
     PREV_LINES=$(echo "$STATE" | jq -r '.transcript_lines // -1' 2>/dev/null)
-    TOTAL_LINES=$(grep -c '' "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
-    if [[ "$PREV_LINES" -ge 0 ]] && [[ "$TOTAL_LINES" -ge "$PREV_LINES" ]]; then
-      # Normal: read only lines added since the step started
-      LAST_OUTPUT=$(tail -n +"$((PREV_LINES + 1))" "$TRANSCRIPT_PATH" | jq -rs '
-        [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
-      ' 2>/dev/null)
-    else
-      # Fallback: no line count, or transcript was compacted (shorter than snapshot)
-      LAST_OUTPUT=$(tail -n 200 "$TRANSCRIPT_PATH" | jq -rs '
-        [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
-      ' 2>/dev/null)
+
+    # Poll for the assistant text to appear in the transcript.  Claude Code may
+    # not have flushed the final assistant message to the JSONL file by the time
+    # the stop hook fires (race documented in test_partial_json_last_line).
+    # We retry up to MAX_POLL times at 200ms intervals before giving up.
+    POLL_ATTEMPTS=0
+    MAX_POLL=25  # 25 × 200ms = 5s
+    while [[ $POLL_ATTEMPTS -lt $MAX_POLL ]]; do
+      TOTAL_LINES=$(grep -c '' "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
+      if [[ "$PREV_LINES" -ge 0 ]] && [[ "$TOTAL_LINES" -ge "$PREV_LINES" ]]; then
+        LAST_OUTPUT=$(tail -n +"$((PREV_LINES + 1))" "$TRANSCRIPT_PATH" | jq -rs '
+          [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
+        ' 2>/dev/null)
+      else
+        LAST_OUTPUT=$(tail -n 200 "$TRANSCRIPT_PATH" | jq -rs '
+          [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
+        ' 2>/dev/null)
+      fi
+
+      # If we got non-empty output, we're done
+      if [[ -n "$LAST_OUTPUT" ]]; then
+        break
+      fi
+
+      POLL_ATTEMPTS=$((POLL_ATTEMPTS + 1))
+      sleep 0.2
+    done
+    if [[ $POLL_ATTEMPTS -ge $MAX_POLL ]]; then
+      echo "[auto] Phase 1: transcript text still empty after ${MAX_POLL} polls" >&2
     fi
   fi
 
