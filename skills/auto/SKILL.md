@@ -11,13 +11,7 @@ Use it when a task needs many iterations (optimize, research, experiment) or str
 
 ## How to Use
 
-### 1. Setup (once per project)
-
-```bash
-auto-run setup
-```
-
-### 2. Write a program
+### 1. Write a program
 
 ```python
 # program.py
@@ -49,7 +43,7 @@ async def main(step):
 
 That's it. No imports needed beyond the `step` function passed to `main`.
 
-### 3. Run it
+### 2. Run it
 
 ```bash
 auto-run program.py
@@ -57,7 +51,7 @@ auto-run program.py
 
 Then type **go** to start. Each step runs as a turn in your session — you can watch everything happen.
 
-### 4. Monitor
+### 3. Monitor
 
 ```bash
 auto-run status    # process status + state + recent logs
@@ -65,7 +59,7 @@ auto-run log       # tail live output
 auto-run stop      # kill it
 ```
 
-### 5. Steer
+### 4. Steer
 
 Kill, edit, restart:
 ```bash

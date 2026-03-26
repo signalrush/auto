@@ -44,82 +44,6 @@ def main():
 PID_FILE = ".auto.pid"
 LOG_FILE = "auto.log"
 
-AUTO_SKILL_MARKER = "<!-- auto-agent -->"
-AUTO_SKILL_CONTENT = """\
-<!-- auto-agent -->
-# Auto — step() loop
-
-`auto-agent` is installed. Write a Python program that drives agent turns via `step()`.
-
-## Usage
-
-```python
-# program.py
-async def main(step):
-    result = await step("Do something")                              # → str
-    data = await step("Report metrics", schema={"loss": "float"})    # → dict
-```
-
-```bash
-auto-run program.py   # start program, then type "go" in Claude Code
-auto-run status       # monitor
-auto-run stop         # kill
-```
-
-## step() API
-
-- `step(instruction)` → `str`
-- `step(instruction, schema={"key": "type"})` → `dict`
-- `step(instruction, schema={...}, schema_strict=False)` → `dict` (nulls on parse failure)
-
-Each `step()` is a full agent turn with all tool access. Context accumulates across steps.
-
-## Patterns
-
-```python
-# Optimization loop
-async def main(step):
-    best = float("inf")
-    for i in range(20):
-        r = await step(f"Experiment {i}: beat {best}", schema={"loss": "float"})
-        if r["loss"] < best:
-            best = r["loss"]
-        else:
-            await step("Revert: git reset --hard HEAD~1")
-        if (i + 1) % 5 == 0:
-            await step("Reflect and adjust strategy")
-```
-
-## State tracking (optional)
-
-```python
-from auto import state
-state.set("status", "running")
-state.update({"step": i, "score": score})
-```
-
-Progress visible via `auto-run status` or `cat auto-state.json`.
-<!-- /auto-agent -->
-"""
-
-
-def _install_skill():
-    """Install auto skill instructions into .claude/CLAUDE.md."""
-    claude_md = Path(".claude") / "CLAUDE.md"
-
-    if claude_md.exists():
-        content = claude_md.read_text()
-        if AUTO_SKILL_MARKER in content:
-            return
-        new_content = content.rstrip() + "\n\n" + AUTO_SKILL_CONTENT
-    else:
-        new_content = AUTO_SKILL_CONTENT
-
-    claude_md.parent.mkdir(exist_ok=True)
-    claude_md.write_text(new_content)
-    print(f"[auto] Skill instructions written to {claude_md.resolve()}")
-
-
 def _setup_hook():
     """Install the auto stop hook into .claude/settings.local.json."""
     # Check dependencies
@@ -164,7 +88,6 @@ def _setup_hook():
         for h in group.get("hooks", []):
             if h.get("command", "") == hook_script_abs:
                 print("[auto] Hook already installed")
-                _install_skill()
                 return
 
     stop_hooks.append({"hooks": [hook_entry]})
@@ -174,8 +97,6 @@ def _setup_hook():
 
     print(f"[auto] Installed stop hook: {hook_script_abs}")
     print(f"[auto] Config written to: {settings_file.resolve()}")
-
-    _install_skill()
 
 
 def _start_program(program_path):
