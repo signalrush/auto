@@ -5,19 +5,28 @@ description: Run yourself in a loop with branching logic via a Python program. U
 
 # Auto — Run yourself in a loop
 
-Auto lets you write a short Python program that drives your own turns. You keep working across many turns with loops, branching, and state — without the user having to prompt you each time.
+A Python program drives your turns. Each `step()` becomes YOUR next turn — you execute it with full tool access. The program controls the loop, branching, and state.
 
-Use it when a task needs many iterations (optimize, research, experiment) or structured multi-step workflows.
+## CRITICAL: How to launch
 
-## How to Use
+```bash
+auto-run program.py
+```
 
-### 1. Write a program
+Then say **"go"** as your next message. That's it. The stop hook injects each step automatically after that.
+
+**DO NOT:**
+- Use `nohup`, `&`, or redirect output — `auto-run` handles backgrounding
+- Run `auto-run log` (it blocks) — use `auto-run status` instead
+- Stop the program because you see "Send any message to begin" — just say "go"
+- Worry about CLAUDE_CODE_SESSION_ID — it works without it
+
+## Writing a program
 
 ```python
 # program.py
-
 async def main(step):
-    # Each step() is a turn in the agent's session — it remembers everything
+    # Each step() is one of YOUR turns — you do the work
     baseline = await step(
         "Run train.py and report val_loss",
         schema={"val_loss": "float"}
@@ -41,32 +50,7 @@ async def main(step):
             await step("Reflect: what's working? What to try next?")
 ```
 
-That's it. No imports needed beyond the `step` function passed to `main`.
-
-### 2. Run it
-
-```bash
-auto-run program.py
-```
-
-Then type **go** to start. Each step runs as a turn in your session — you can watch everything happen.
-
-### 3. Monitor
-
-```bash
-auto-run status    # process status + state + recent logs
-auto-run log       # tail live output
-auto-run stop      # kill it
-```
-
-### 4. Steer
-
-Kill, edit, restart:
-```bash
-auto-run stop
-# edit program.py
-auto-run program.py &
-```
+No imports needed beyond the `step` function passed to `main`.
 
 ## step() API
 
@@ -75,40 +59,36 @@ result = await step(instruction)              # returns str
 result = await step(instruction, schema={})   # returns dict
 ```
 
-- **instruction** (`str`): What to do. Natural language.
+- **instruction** (`str`): What to do. You execute this as a full turn.
 - **schema** (`dict`, optional): Forces structured JSON output. Keys are field names, values are type descriptions.
 
-Each `step()` is a turn in the agent's session. The agent has full tool access (bash, file edit, etc) and remembers all previous steps.
+If JSON parsing fails, it retries up to 2 times automatically.
+
+## Monitor and control
+
+```bash
+auto-run status    # process state + recent logs (non-blocking)
+auto-run stop      # kill the program
+```
 
 ## State tracking (optional)
-
-For long-running programs, use `auto.state` to write progress to `auto-state.json`:
 
 ```python
 from auto import state
 
 async def main(step):
     state.set("status", "running")
-    
     for i in range(100):
         result = await step(f"experiment {i}", schema={"score": "float"})
         state.update({"step": i, "score": result["score"]})
-    
     state.set("status", "done")
 ```
 
-Then `auto-run status` or `cat auto-state.json` shows progress.
+Progress visible via `auto-run status` or `cat auto-state.json`.
 
 ## Patterns
 
-### Simple loop
-```python
-async def main(step):
-    for i in range(50):
-        await step(f"Do task {i}")
-```
-
-### Loop with branching
+### Optimization loop
 ```python
 async def main(step):
     best = 999
@@ -120,7 +100,7 @@ async def main(step):
             await step("Revert")
 ```
 
-### Error handling
+### Error recovery
 ```python
 async def main(step):
     for i in range(20):
@@ -130,7 +110,7 @@ async def main(step):
             await step(f"Failed: {e}. Try a simpler approach.")
 ```
 
-### Replanning
+### Periodic reflection
 ```python
 async def main(step):
     for i in range(100):
@@ -139,12 +119,6 @@ async def main(step):
             await step("Reflect on last 10 experiments. Adjust strategy.")
 ```
 
-## When to use Auto
-
-**Use it for:** long-running loops, research, optimization, anything needing 10+ steps with branching logic
-
-**Don't use it for:** one-shot tasks, simple questions — just do those in normal conversation
-
 ## Key insight
 
-Each `step()` is a full turn — you can use all your tools (Bash, Read, Edit, etc.). The Python program decides what to do next based on your results. You keep your full conversation memory across all steps.
+Each `step()` is YOUR full turn — you use all your tools (Bash, Read, Edit, etc.) to execute the instruction. The Python program decides what comes next based on your results. You keep full conversation memory across all steps.
