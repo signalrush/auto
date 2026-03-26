@@ -269,8 +269,8 @@ def test_hook_transcript_tail_jq_returns_last_assistant_text(tmp_path):
     """
     transcript_path = tmp_path / "transcript.jsonl"
     transcript_lines = [
-        '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "hi"}]}}',
-        '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "text": "hello from assistant"}]}}',
+        '{"type": "user", "role": "user", "message": {"content": [{"type": "text", "text": "hi"}]}}',
+        '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "text": "hello from assistant"}]}}',
     ]
     transcript_path.write_text("\n".join(transcript_lines) + "\n")
 
@@ -279,7 +279,7 @@ def test_hook_transcript_tail_jq_returns_last_assistant_text(tmp_path):
         [
             "bash", "-c",
             f"tail -n 200 {transcript_path}"
-            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
+            f" | jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
         ],
         capture_output=True, text=True,
     )
@@ -297,13 +297,13 @@ def test_hook_only_extracts_current_turn_text(tmp_path):
     transcript_path = tmp_path / "transcript.jsonl"
     # Turn 1 lines (lines 1–2): old assistant text with stale JSON
     turn1_lines = [
-        '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "q1"}]}}',
-        '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "text": "{\\"old\\": true}"}]}}',
+        '{"type": "user", "role": "user", "message": {"content": [{"type": "text", "text": "q1"}]}}',
+        '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "text": "{\\"old\\": true}"}]}}',
     ]
     # Turn 2 lines (lines 3–4): new assistant text with fresh JSON
     turn2_lines = [
-        '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "q2"}]}}',
-        '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "text": "{\\"new\\": true}"}]}}',
+        '{"type": "user", "role": "user", "message": {"content": [{"type": "text", "text": "q2"}]}}',
+        '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "text": "{\\"new\\": true}"}]}}',
     ]
     transcript_path.write_text("\n".join(turn1_lines + turn2_lines) + "\n")
 
@@ -314,7 +314,7 @@ def test_hook_only_extracts_current_turn_text(tmp_path):
         [
             "bash", "-c",
             f"tail -n +{prev_lines + 1} {transcript_path}"
-            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
+            f" | jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
         ],
         capture_output=True, text=True,
     )
@@ -328,10 +328,10 @@ def test_hook_transcript_tail_jq_returns_all_assistant_text_joined(tmp_path):
     """When multiple assistant turns exist, jq join returns all text concatenated."""
     transcript_path = tmp_path / "transcript.jsonl"
     transcript_lines = [
-        '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "q1"}]}}',
-        '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "text": "answer one"}]}}',
-        '{"type": "message", "role": "user", "message": {"content": [{"type": "text", "text": "q2"}]}}',
-        '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "text": "answer two"}]}}',
+        '{"type": "user", "role": "user", "message": {"content": [{"type": "text", "text": "q1"}]}}',
+        '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "text": "answer one"}]}}',
+        '{"type": "user", "role": "user", "message": {"content": [{"type": "text", "text": "q2"}]}}',
+        '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "text": "answer two"}]}}',
     ]
     transcript_path.write_text("\n".join(transcript_lines) + "\n")
 
@@ -339,7 +339,7 @@ def test_hook_transcript_tail_jq_returns_all_assistant_text_joined(tmp_path):
         [
             "bash", "-c",
             f"tail -n 200 {transcript_path}"
-            f" | jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
+            f" | jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"
         ],
         capture_output=True, text=True,
     )

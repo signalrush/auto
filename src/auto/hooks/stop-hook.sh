@@ -61,12 +61,12 @@ if [[ "$STATUS" == "running" ]]; then
     if [[ "$PREV_LINES" -ge 0 ]] && [[ "$TOTAL_LINES" -ge "$PREV_LINES" ]]; then
       # Normal: read only lines added since the step started
       LAST_OUTPUT=$(tail -n +"$((PREV_LINES + 1))" "$TRANSCRIPT_PATH" | jq -rs '
-        [.[] | select(.role == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
+        [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
       ' 2>/dev/null)
     else
       # Fallback: no line count, or transcript was compacted (shorter than snapshot)
       LAST_OUTPUT=$(tail -n 200 "$TRANSCRIPT_PATH" | jq -rs '
-        [.[] | select(.role == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
+        [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n")
       ' 2>/dev/null)
     fi
   fi

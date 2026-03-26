@@ -340,7 +340,7 @@ def _run_hook_phase1(tmp_path, state, transcript_content, session_id=""):
 
 def _make_jsonl_line(role, text):
     return json.dumps({
-        "type": "message",
+        "type": role,
         "role": role,
         "message": {"content": [{"type": "text", "text": text}]},
     })
@@ -449,7 +449,7 @@ def test_grep_c_counts_lines_without_trailing_newline(tmp_path):
     pipe = subprocess.run(
         ["bash", "-c",
          f"tail -n +{prev_lines + 1} {transcript_path} "
-         f"| jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
+         f"| jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
         capture_output=True, text=True,
     )
     output = pipe.stdout.strip()
@@ -486,7 +486,7 @@ def test_tail_beyond_file_length_returns_empty(tmp_path):
     pipe = subprocess.run(
         ["bash", "-c",
          f"tail -n +{n_beyond} {transcript_path} "
-         f"| jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
+         f"| jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
         capture_output=True, text=True,
     )
     assert pipe.returncode == 0, f"jq failed: {pipe.stderr}"
@@ -522,7 +522,7 @@ def test_fallback_tail_200_truncates_long_turn(tmp_path):
     pipe = subprocess.run(
         ["bash", "-c",
          f"tail -n 200 {transcript_path} "
-         f"| jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
+         f"| jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")'"],
         capture_output=True, text=True,
     )
     output = pipe.stdout.strip()
@@ -622,7 +622,7 @@ def test_partial_json_last_line_jq_exits_nonzero(tmp_path):
     The test documents the behavior to prevent regressions.
     """
     valid_line = _make_jsonl_line("assistant", "complete answer")
-    partial_line = '{"type": "message", "role": "assistant", "message": {"content": [{"type": "text", "tex'
+    partial_line = '{"type": "assistant", "role": "assistant", "message": {"content": [{"type": "text", "tex'
 
     transcript_path = tmp_path / "transcript.jsonl"
     transcript_path.write_text(valid_line + "\n" + partial_line)
@@ -630,7 +630,7 @@ def test_partial_json_last_line_jq_exits_nonzero(tmp_path):
     pipe = subprocess.run(
         ["bash", "-c",
          f"tail -n 200 {transcript_path} "
-         f"| jq -rs '[.[] | select(.role == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")' 2>/dev/null"],
+         f"| jq -rs '[.[] | select(.type == \"assistant\") | .message.content[]? | select(.type == \"text\") | .text] | join(\"\\n\")' 2>/dev/null"],
         capture_output=True, text=True,
     )
 
