@@ -133,11 +133,8 @@ while true; do
       SCHEMA_DESC=$(echo "$SCHEMA" | jq '.' 2>/dev/null)
       PROMPT="${PROMPT}
 
-Respond with ONLY a JSON object. The keys and their expected types are:
-${SCHEMA_DESC}
-
-Replace the type descriptions with actual values. For example, if the schema is {\"name\": \"str\", \"age\": \"int\"}, you would return {\"name\": \"Alice\", \"age\": 30}.
-Return ONLY the JSON object, no other text."
+Respond with a JSON object with these keys and types:
+${SCHEMA_DESC}"
     fi
 
     # Count current transcript lines so Phase 1 knows where the current turn starts

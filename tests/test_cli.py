@@ -227,7 +227,7 @@ def test_hook_script_schema_augments_prompt(tmp_path):
         capture_output=True, text=True, cwd=tmp_path,
     )
     output = json.loads(result.stdout)
-    assert "Respond with ONLY a JSON object" in output["reason"]
+    assert "Respond with a JSON object" in output["reason"]
     assert "score" in output["reason"]
 
 
