@@ -73,16 +73,17 @@ def _extract_json(text):
             pass
 
     for start_char, end_char in [('{', '}'), ('[', ']')]:
-        end = text.rfind(end_char)
-        if end == -1:
-            continue
-        # Try json.loads from each opening brace/bracket to the last closing one.
-        # This avoids naive depth-counting which fails on unbalanced braces
-        # inside JSON string values (e.g. "missing { on line 5").
-        for i in range(end, -1, -1):
-            if text[i] == start_char:
+        # Try every closing brace/bracket from right to left (prefer later JSON,
+        # which is typically the actual response). For each, try opening braces
+        # left to right (prefer largest valid JSON object).
+        for end in range(len(text) - 1, -1, -1):
+            if text[end] != end_char:
+                continue
+            for start in range(0, end + 1):
+                if text[start] != start_char:
+                    continue
                 try:
-                    return json.loads(text[i:end + 1])
+                    return json.loads(text[start:end + 1])
                 except json.JSONDecodeError:
                     continue
 
