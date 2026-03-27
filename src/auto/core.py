@@ -67,7 +67,7 @@ class Auto:
             "schema": schema,
             "response": None,
             "error": None,
-            "pid": self._pid,
+            "python_pid": self._pid,
             "cwd": self._cwd,
             "transcript_lines": None,
         })
@@ -139,7 +139,7 @@ class Auto:
                         "step_number": handle.step_count,
                         "last_instruction": "",
                         "cwd": handle.cwd,
-                        "pid": os.getpid(),
+                        "python_pid": os.getpid(),
                     })
                 except OSError:
                     pass
@@ -199,7 +199,7 @@ class Auto:
                         "schema": schema,
                         "response": None,
                         "error": None,
-                        "pid": self._pid,
+                        "python_pid": self._pid,
                         "cwd": self._cwd,
                         "transcript_lines": None,
                     })

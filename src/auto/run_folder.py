@@ -56,6 +56,44 @@ def create_run_folder(auto_dir: Path) -> Path:
     return run_dir
 
 
+def register_session(auto_dir: Path, session_id: str, run_dir: Path) -> None:
+    """Create a symlink at ~/.auto/sessions/<session_id> -> run folder.
+
+    This allows the stop hook to find the correct run folder for its session
+    when multiple programs are running concurrently.
+    """
+    if not session_id:
+        return
+    sessions_dir = auto_dir / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    link = sessions_dir / session_id
+    # Atomic symlink update
+    tmp_link = sessions_dir / f".{session_id}.tmp"
+    try:
+        os.symlink(run_dir, tmp_link)
+        os.rename(tmp_link, link)
+    except OSError:
+        try:
+            os.unlink(link)
+        except FileNotFoundError:
+            pass
+        try:
+            os.symlink(run_dir, link)
+        except OSError:
+            pass
+
+
+def unregister_session(auto_dir: Path, session_id: str) -> None:
+    """Remove the session symlink on program exit."""
+    if not session_id:
+        return
+    link = auto_dir / "sessions" / session_id
+    try:
+        os.unlink(link)
+    except FileNotFoundError:
+        pass
+
+
 def write_state(path: Path, data: dict) -> None:
     """Write state file atomically with updated_at timestamp."""
     path.parent.mkdir(parents=True, exist_ok=True)

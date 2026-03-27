@@ -9,12 +9,38 @@ if [[ "$AUTO_SKIP_HOOK" == "1" ]]; then
   exit 0
 fi
 
-STATE_FILE="$HOME/.auto/latest/self.json"
 # Log invocation for debuggability (appears in Claude Code's hook debug output)
 echo "[auto] stop-hook invoked" >&2
 
-# --- Guard: state file must exist ---
+# --- Resolve state file via session ID ---
+# Each program registers itself at ~/.auto/sessions/<session_id> -> run folder.
+# This allows multiple concurrent programs without interference.
+HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null)
+
+STATE_FILE=""
+if [[ -n "$HOOK_SESSION" ]]; then
+  SESSION_LINK="$HOME/.auto/sessions/$HOOK_SESSION"
+  if [[ -L "$SESSION_LINK" ]] || [[ -d "$SESSION_LINK" ]]; then
+    STATE_FILE="$SESSION_LINK/self.json"
+    echo "[auto] resolved state file via session: $STATE_FILE" >&2
+  fi
+fi
+
+# Fallback to latest symlink (single-program compat / no session ID)
+if [[ -z "$STATE_FILE" ]]; then
+  STATE_FILE="$HOME/.auto/latest/self.json"
+  echo "[auto] using fallback: $STATE_FILE" >&2
+fi
+
+# --- Guard: state file must exist (poll briefly for startup) ---
+WAIT_COUNT=0
+MAX_WAIT=50  # 50 × 200ms = 10s
+while [[ ! -f "$STATE_FILE" ]] && [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
+  sleep 0.2
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+done
 if [[ ! -f "$STATE_FILE" ]]; then
+  echo "[auto] state file not found after ${MAX_WAIT} polls, exiting" >&2
   exit 0
 fi
 
@@ -31,9 +57,9 @@ if [[ -z "$STATUS" ]] || [[ "$STATUS" == "null" ]]; then
   exit 0
 fi
 
-# --- Session isolation ---
-HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null)
-if [[ -n "$STATE_SESSION" ]] && [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
+# --- Session isolation (belt-and-suspenders: verify state file matches) ---
+if [[ -n "$STATE_SESSION" ]] && [[ -n "$HOOK_SESSION" ]] && [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
+  echo "[auto] session mismatch: state=$STATE_SESSION hook=$HOOK_SESSION, exiting" >&2
   exit 0
 fi
 
@@ -203,7 +229,7 @@ ${SCHEMA_DESC}"
     rm -f "$STATE_FILE"
     exit 0
 
-  # "starting": Python is alive but program_fn hasn't called step() yet.
+  # "starting": Python is alive but program_fn hasn't called remind() yet.
   # "responded": Python hasn't consumed the response yet.
   # Both fall through to sleep and re-poll.
   fi

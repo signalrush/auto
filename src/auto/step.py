@@ -294,6 +294,12 @@ async def run_program(program_fn):
         "cwd": cwd,
     })
 
+    # Register session -> run folder mapping for multi-program isolation
+    from auto.run_folder import register_session, unregister_session
+    auto_dir = Path.home() / ".auto"
+    # v1 uses ~/.auto/latest directly, register that as the run dir
+    register_session(auto_dir, session_id, auto_dir / "latest")
+
     async def step(instruction, schema=None, schema_strict=True):
         """Send an instruction to Claude and get the result.
 
@@ -432,6 +438,8 @@ async def run_program(program_fn):
             "python_pid": pid,
             "cwd": cwd,
         })
+    finally:
+        unregister_session(auto_dir, session_id)
 
 
 async def run_program_v2(program_fn):
@@ -454,6 +462,29 @@ async def run_program_v2(program_fn):
         auto = Auto(session_id=session_id)
     _log(f"Run dir: {auto.run_dir}")
 
+    # Write "starting" heartbeat so the hook knows Python is alive
+    # (matches v1 behavior). Without this, self.json doesn't exist until
+    # the first remind() call, so the hook exits immediately if the program
+    # starts with task() calls.
+    from auto.run_folder import write_state, register_session, unregister_session
+    write_state(auto._self_state_path, {
+        "name": "self",
+        "status": "starting",
+        "session_id": session_id,
+        "step_number": 0,
+        "instruction": None,
+        "schema": None,
+        "response": None,
+        "error": None,
+        "python_pid": pid,
+        "cwd": str(auto._project_root),
+    })
+
+    # Register session -> run folder mapping so the hook can find the right
+    # state file when multiple programs run concurrently.
+    auto_dir = Path.home() / ".auto"
+    register_session(auto_dir, session_id, auto.run_dir)
+
     def _handle_sigterm(signum, frame):
         raise SystemExit("Received SIGTERM")
 
@@ -474,7 +505,7 @@ async def run_program_v2(program_fn):
             "schema": None,
             "response": None,
             "error": None,
-            "pid": pid,
+            "python_pid": pid,
             "cwd": str(auto._project_root),
         })
     except SystemExit as e:
@@ -487,3 +518,4 @@ async def run_program_v2(program_fn):
         raise
     finally:
         auto.cleanup()
+        unregister_session(auto_dir, session_id)
