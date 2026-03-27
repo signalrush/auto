@@ -3,6 +3,12 @@
 # termination from racing PIDs and transient command failures (B16).
 
 HOOK_INPUT=$(cat)
+
+# Skip hook in sub-agent sessions (they use claude -p, not hook IPC)
+if [[ "$AUTO_SKIP_HOOK" == "1" ]]; then
+  exit 0
+fi
+
 STATE_FILE="$HOME/.auto/latest/self.json"
 # Log invocation for debuggability (appears in Claude Code's hook debug output)
 echo "[auto] stop-hook invoked" >&2

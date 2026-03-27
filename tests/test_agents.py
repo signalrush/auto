@@ -93,3 +93,26 @@ class TestAgentHandle:
         assert state["last_instruction"] == "do task"
         assert state["status"] == "idle"
         assert "updated_at" in state
+
+    def test_sets_auto_skip_hook_env(self, tmp_path):
+        """Regression: sub-agent must set AUTO_SKIP_HOOK=1 so our stop hook
+        exits early, preventing interference with the main session's IPC.
+
+        We don't use --bare because that would strip all hooks/skills/plugins.
+        We only want to skip our own orchestration hook.
+        """
+        state_path = tmp_path / "coder.json"
+        agent = AgentHandle("coder", cwd=str(tmp_path), state_path=state_path,
+                           log_path=tmp_path / "coder.log")
+        with patch("auto.agents.subprocess.run",
+                   return_value=_mock_completed_process()) as mock_run:
+            asyncio.run(agent.run("do something"))
+        env = mock_run.call_args[1].get("env", {})
+        assert env.get("AUTO_SKIP_HOOK") == "1", (
+            "Sub-agent must set AUTO_SKIP_HOOK=1 to prevent our stop hook "
+            "from interfering. Other hooks/skills should still work."
+        )
+        cmd = mock_run.call_args[0][0]
+        assert "--bare" not in cmd, (
+            "Should NOT use --bare — sub-agents need access to skills and hooks"
+        )

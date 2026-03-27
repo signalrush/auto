@@ -451,7 +451,13 @@ async def run_program_v2(program_fn):
     print(f"\n{'='*60}", flush=True)
     _log(f"{datetime.datetime.now().isoformat()} Starting v2 (PID {pid})")
 
-    auto = Auto(session_id=session_id)
+    # Use run dir from CLI if provided, otherwise create new one
+    run_dir_env = os.environ.get("AUTO_RUN_DIR")
+    if run_dir_env:
+        from pathlib import Path
+        auto = Auto(session_id=session_id, run_dir=Path(run_dir_env))
+    else:
+        auto = Auto(session_id=session_id)
     _log(f"Run dir: {auto.run_dir}")
 
     def _handle_sigterm(signum, frame):
@@ -462,6 +468,21 @@ async def run_program_v2(program_fn):
     try:
         await program_fn(auto)
         _log(f"Program complete ({auto._step_count} steps)")
+        # Write done state so the hook exits cleanly
+        from auto.run_folder import write_state
+        _log("Writing done state")
+        write_state(auto._self_state_path, {
+            "name": "self",
+            "status": "done",
+            "session_id": session_id,
+            "step_number": auto._step_count,
+            "instruction": None,
+            "schema": None,
+            "response": None,
+            "error": None,
+            "pid": pid,
+            "cwd": str(auto._project_root),
+        })
     except SystemExit as e:
         _log(f"Program terminated: {e}")
         raise

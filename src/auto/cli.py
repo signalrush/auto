@@ -75,6 +75,7 @@ def _setup_hook():
     hook_entry = {
         "type": "command",
         "command": hook_script_abs,
+        "timeout": 86400,  # 24h — hook blocks during task() execution
     }
 
     if settings_file.exists():
@@ -133,10 +134,11 @@ def _start_program(program_path):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
-    # Create run folder under ~/.auto/
+    # Create run folder under ~/.auto/ and pass path to child process
     auto_dir = Path(AUTO_DIR)
     run_dir = create_run_folder(auto_dir)
     run_log = str(run_dir / "logs" / "self.log")
+    env["AUTO_RUN_DIR"] = str(run_dir)
 
     log_fh = open(run_log, "w")
     try:

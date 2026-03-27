@@ -48,9 +48,13 @@ class AgentHandle:
              f"{'--resume ' + self.session_id[:8] + '... ' if self.session_id else ''}"
              f"({len(instruction)}b instruction)")
 
+        # Set AUTO_SKIP_HOOK so our stop hook exits early in sub-agent sessions
+        env = os.environ.copy()
+        env["AUTO_SKIP_HOOK"] = "1"
+
         try:
             result = subprocess.run(cmd, capture_output=True, text=True,
-                                   cwd=self.cwd, timeout=timeout)
+                                   cwd=self.cwd, timeout=timeout, env=env)
         except subprocess.TimeoutExpired:
             write_state(self.state_path, {
                 "name": self.name, "session_id": self.session_id,

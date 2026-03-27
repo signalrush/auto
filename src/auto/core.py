@@ -18,7 +18,7 @@ class Auto:
     """Orchestration object passed to auto programs as `async def main(auto):`."""
 
     def __init__(self, project_root: Path = None, session_id: str = "",
-                 auto_dir: Path = None):
+                 auto_dir: Path = None, run_dir: Path = None):
         if project_root is None:
             project_root = Path.cwd()
         self._project_root = Path(project_root)
@@ -26,10 +26,14 @@ class Auto:
         self._pid = os.getpid()
         self._cwd = str(self._project_root.resolve())
 
-        # Create run folder in global ~/.auto/ (or override for tests)
-        if auto_dir is None:
-            auto_dir = Path.home() / ".auto"
-        self.run_dir = create_run_folder(auto_dir)
+        # Use existing run folder if provided (CLI already created it),
+        # otherwise create a new one
+        if run_dir is not None:
+            self.run_dir = Path(run_dir)
+        else:
+            if auto_dir is None:
+                auto_dir = Path.home() / ".auto"
+            self.run_dir = create_run_folder(auto_dir)
         self._self_state_path = self.run_dir / "self.json"
 
         # Agent registry
